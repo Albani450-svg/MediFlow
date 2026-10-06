@@ -1,0 +1,1 @@
+Execute `if (Test-Path node_modules\esbuild\bin\esbuild) { 'hoisted' } else { 'missing' }; Get-ChildItem node_modules\esbuild -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name`

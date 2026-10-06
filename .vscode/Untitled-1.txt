@@ -1,0 +1,13 @@
+Execute `python -c "
+import zipfile, xml.etree.ElementTree as ET, sys
+sys.stdout.reconfigure(encoding='utf-8')
+z=zipfile.ZipFile(r'c:\Users\Aceruser10\Downloads\Gambaran.docx')
+root=ET.fromstring(z.read('word/document.xml'))
+paras=[]
+for p in root.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'):
+    texts=[t.text or '' for t in p.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t')]
+    line=''.join(texts).strip()
+    if line: paras.append(line)
+open(r'C:\Users\ACERUS~1\AppData\Local\Temp\gambaran.md','w',encoding='utf-8').write('\n'.join(paras))
+print(len(paras), 'paragraphs')
+"`

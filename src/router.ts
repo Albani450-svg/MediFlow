@@ -2,6 +2,7 @@
 // See https://developer.chrome.com/docs/web-platform/navigation-api/ for details.
 
 import { html, nothing, type TemplateResult } from 'lit';
+import './pages/app-login/app-login';
 
 // URLPattern is used for route matching. Load the polyfill when the browser
 // doesn't ship it natively (e.g. older Safari/Firefox).
@@ -47,6 +48,13 @@ export class Router extends EventTarget {
       );
     }
 
+    if (!navigation) {
+      window.addEventListener('popstate', () => {
+        const current = this.match(new URL(window.location.href));
+        if (current) void this.activate(current);
+      });
+    }
+
     // The Navigation API does not emit a "navigate" event for the initial
     // document load, so resolve the current route right away.
     const url = new URL(window.location.href);
@@ -56,6 +64,19 @@ export class Router extends EventTarget {
     } else if (route) {
       this.setContent(route);
     }
+  }
+
+  /** Pindah halaman. Memakai Navigation API bila ada. */
+  go(pathname: string): void {
+    const url = new URL(pathname, window.location.origin);
+    const navigation = (window as any).navigation;
+    if (navigation?.navigate) {
+      void navigation.navigate(url.href);
+      return;
+    }
+    window.history.pushState({}, '', url.pathname);
+    const route = this.match(url);
+    if (route) void this.activate(route);
   }
 
   /** Returns the current route's rendered template for the host element. */
@@ -115,17 +136,26 @@ export const router = new Router({
   routes: [
     {
       path: resolveRouterPath(),
-      title: 'Home',
-      render: () => html`<app-home></app-home>`,
+      title: 'Masuk • MediFlow',
+      render: () => html`<app-login></app-login>`,
     },
     {
-      path: resolveRouterPath('about'),
-      title: 'About',
-      load: () => import('./pages/app-about/app-about.js'),
-      render: () => html`<app-about></app-about>`,
+      path: resolveRouterPath('app'),
+      title: 'MediFlow',
+      load: () => import('./pages/app-beranda/app-beranda.js'),
+      render: () => html`<app-beranda></app-beranda>`,
     },
   ],
+  fallback: {
+    path: resolveRouterPath(),
+    title: 'MediFlow',
+    render: () => html`<app-login></app-login>`,
+  },
 });
+
+export function go(pathname: string): void {
+  router.go(pathname);
+}
 
 // This function will resolve a path with whatever Base URL was passed to the vite build process.
 // Use of this function throughout the starter is not required, but highly recommended, especially if you plan to use GitHub Pages to deploy.

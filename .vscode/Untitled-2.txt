@@ -1,0 +1,2 @@
+Execute `node -v; python -c "import hashlib; ps=['pasien123','dokter123','admin123','apotek123'];
+[print(p, hashlib.sha256(p.encode()).hexdigest()) for p in ps]"`
