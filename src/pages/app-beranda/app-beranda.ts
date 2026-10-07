@@ -46,6 +46,7 @@ export class AppBeranda extends LitElement {
   @state() private stokDraft: Record<number, string> = {};
   @state() private panelTerbuka = false;
   @state() private toasts: { id: number; judul: string; isi: string }[] = [];
+  @state() private menunggu = true;
 
   private formKunci = '';
   private qrFor = '';
@@ -60,10 +61,17 @@ export class AppBeranda extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    void this.siapkan();
+  }
+
+  private async siapkan(): Promise<void> {
+    await mediflow.siap;
+    if (!this.isConnected) return;
     if (!mediflow.session()) {
       go('/');
       return;
     }
+    this.menunggu = false;
     mediflow.notifikasiUser().forEach((item) => this.dikenal.add(item.id_notifikasi));
     this.lepas = mediflow.subscribe(() => {
       this.tangkapNotifikasiBaru();
@@ -308,6 +316,9 @@ export class AppBeranda extends LitElement {
   }
 
   render() {
+    if (this.menunggu) {
+      return html`<div class="app"><main class="container"><p class="hint">Memuat data rumah sakit...</p></main></div>`;
+    }
     const aktor = mediflow.userAktif();
     if (!aktor) return nothing;
     const kunjungan = this.aktif();

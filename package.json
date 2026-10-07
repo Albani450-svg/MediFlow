@@ -4,6 +4,7 @@
   "description": "PWA antrean poliklinik, rekam medis, dan e-resep MediFlow.",
   "main": "index.js",
   "scripts": {
+    "api": "node scripts/start-api.mjs",
     "dev-server": "vite --open",
     "dev": "npm run dev-server",
     "dev-task": "vite",

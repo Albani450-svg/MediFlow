@@ -4,10 +4,10 @@ import type { Database, JadwalDokter, Obat } from './types';
 
 /**
  * Master data mengikuti dump medicflow_db.
- * Dua penyesuaian agar aplikasi bisa dipakai:
+ * Dua penyesuaian agar aplikasi bisa dipakai (juga di db/sesuaikan-pwa.sql):
  * - kata sandi di-hash dengan cara yang diverifikasi layar masuk (dump memakai placeholder bcrypt);
  * - pasien Budi mendapat akun sendiri. Di dump, baris pasien menunjuk id_user admin.
- * Satu kunjungan demo ditambahkan supaya alur terlihat saat aplikasi dibuka.
+ * Satu kunjungan demo ditambahkan supaya alur terlihat saat aplikasi dibuka tanpa MySQL.
  */
 
 const AWAL = '2026-10-02T20:53:44.000Z';

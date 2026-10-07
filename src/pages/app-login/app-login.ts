@@ -62,10 +62,15 @@ export class AppLogin extends LitElement {
   @state() private password = AKUN[0].password;
   @state() private error = '';
   @state() private loading = false;
+  @state() private sumber: 'mysql' | 'peramban' | 'memuat' = 'memuat';
 
   connectedCallback(): void {
     super.connectedCallback();
-    if (mediflow.session()) go('/app');
+    void mediflow.siap.then(() => {
+      if (!this.isConnected) return;
+      this.sumber = mediflow.sumber();
+      if (mediflow.session()) go('/app');
+    });
   }
 
   private akun(): AkunDemo {
@@ -143,7 +148,13 @@ export class AppLogin extends LitElement {
             <button class="btn-primary" id="btn-login" ?disabled=${this.loading} @click=${() => this.masuk()}>
               ${this.loading ? 'Memeriksa...' : 'Masuk ke Sistem →'}
             </button>
-            <p class="hint">Demo lokal memakai kata sandi yang sudah terisi. Data tersimpan di peramban ini.</p>
+            <p class="hint">
+              ${this.sumber === 'mysql'
+                ? 'Akun, poli, jadwal, dan stok obat mengikuti database medicflow_db.'
+                : this.sumber === 'memuat'
+                  ? 'Menghubungi database medicflow_db...'
+                  : 'Database belum terjangkau. Data demo tersimpan di peramban ini.'}
+            </p>
           </div>
         </div>
       </section>

@@ -1,5 +1,6 @@
 import { hashPassword, randomPin, randomToken } from './crypto';
 import { notifyBrowser } from './notify';
+import { ambilDatabase, simpanDatabase } from './remote';
 import { createDatabase } from './seed';
 import { formatJam, formatTanggal } from './format';
 import {
@@ -131,10 +132,19 @@ function simpanBaca(ids: Set<number>): void {
 class MediflowStore {
   private db: Database;
   private listeners = new Set<() => void>();
+  private bolehDorong = false;
+  private asal: 'mysql' | 'peramban' = 'peramban';
+  private antrian: ReturnType<typeof setTimeout> | null = null;
+  readonly siap: Promise<void>;
 
   constructor() {
     this.db = loadDb();
-    this.persist();
+    this.simpanLokal();
+    this.siap = this.muatServer();
+  }
+
+  sumber(): 'mysql' | 'peramban' {
+    return this.asal;
   }
 
   subscribe(listener: () => void): () => void {
@@ -142,8 +152,43 @@ class MediflowStore {
     return () => this.listeners.delete(listener);
   }
 
-  private persist(): void {
+  private simpanLokal(): void {
     localStorage.setItem(DB_KEY, JSON.stringify(this.db));
+  }
+
+  private persist(): void {
+    this.simpanLokal();
+    if (!this.bolehDorong || typeof window === 'undefined') return;
+    if (this.antrian) clearTimeout(this.antrian);
+    this.antrian = setTimeout(() => this.dorongSekarang(), 80);
+  }
+
+  private dorongSekarang(): void {
+    if (this.antrian) {
+      clearTimeout(this.antrian);
+      this.antrian = null;
+    }
+    if (!this.bolehDorong) return;
+    const salinan = JSON.parse(JSON.stringify(this.db)) as Database;
+    void simpanDatabase(salinan).then((berhasil) => {
+      if (!berhasil) console.warn('Perubahan belum tersimpan ke medicflow_db.');
+    });
+  }
+
+  private async muatServer(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    window.addEventListener('pagehide', () => this.dorongSekarang());
+    try {
+      const remote = await ambilDatabase();
+      if (!remote) return;
+      this.db = remote;
+      this.asal = 'mysql';
+      this.bolehDorong = true;
+      this.simpanLokal();
+      this.listeners.forEach((listener) => listener());
+    } catch (error) {
+      console.warn('medicflow_db tidak terbaca', error);
+    }
   }
 
   private emit(): void {
@@ -175,6 +220,7 @@ class MediflowStore {
   }
 
   async login(username: string, password: string): Promise<Result<Session>> {
+    await this.siap;
     const user = this.db.users.find(
       (row) => row.username.toLowerCase() === username.trim().toLowerCase() && row.is_active
     );
@@ -388,7 +434,7 @@ class MediflowStore {
       diagnosis: '',
       tindakan: '',
       catatan_dokter: null,
-      waktu_mulai: null,
+      waktu_mulai: sekarang,
       waktu_selesai: null,
       created_at: sekarang,
       updated_at: sekarang,
