@@ -1,4 +1,4 @@
-import type { JenisPenjamin, Ketersediaan, StatusResep } from './types';
+import type { Ketersediaan, StatusResep } from './types';
 
 const zona = 'Asia/Jakarta';
 
@@ -30,8 +30,8 @@ export function formatRp(nilai: number): string {
   }).format(nilai);
 }
 
-export function labelPenjamin(jenis: JenisPenjamin): string {
-  return jenis === 'bpjs' ? 'BPJS Kesehatan' : 'Umum';
+export function labelPenjamin(nomorBpjs: string | null): string {
+  return nomorBpjs ? 'BPJS Kesehatan' : 'Umum';
 }
 
 export function labelKetersediaan(status: Ketersediaan): string {
@@ -42,24 +42,18 @@ export function labelKetersediaan(status: Ketersediaan): string {
 
 export function labelStatusResep(status: StatusResep): string {
   switch (status) {
-    case 'Draft':
-      return 'Draft dokter';
     case 'Menunggu Pilihan':
       return 'Menunggu pilihan tebus';
-    case 'Verifikasi Kasir':
-      return 'Verifikasi kasir / BPJS';
     case 'Antrean Farmasi':
       return 'Antrean farmasi';
     case 'Sedang Diracik':
       return 'Sedang diracik';
-    case 'Pengecekan':
-      return 'Pengecekan ganda';
     case 'Siap Diambil':
       return 'Siap diambil';
     case 'Selesai Diambil':
       return 'Selesai diambil';
-    case 'Tebus Luar':
-      return 'Ditebus di apotek luar';
+    case 'Dibatalkan':
+      return 'Dibatalkan';
     default:
       return status;
   }

@@ -1,9 +1,6 @@
-/** Model data MediFlow.
- *  Menggabungkan rancangan awal, field yang masih kurang, tabel yang belum ada,
- *  dan alur di dokumen gambaran serta prototipe 10 tahap.
- */
+/** Model data MediFlow, mengikuti db/schema.sql (medicflow_db). */
 
-export type Role = 'pasien' | 'dokter' | 'admin' | 'apoteker';
+export type Role = 'admin' | 'pasien' | 'dokter' | 'farmasi';
 
 export type JenisKelamin = 'L' | 'P';
 
@@ -16,45 +13,46 @@ export type Hari =
   | 'Jumat'
   | 'Sabtu';
 
-export type JenisPenjamin = 'bpjs' | 'umum';
-
 export type StatusAntrean =
-  | 'Terdaftar'
   | 'Menunggu'
+  | 'Dipanggil'
   | 'Masuk Ruangan'
-  | 'Selesai'
+  | 'Selesai Pemeriksaan'
   | 'Batal';
 
 export type StatusResep =
-  | 'Draft'
   | 'Menunggu Pilihan'
-  | 'Verifikasi Kasir'
   | 'Antrean Farmasi'
   | 'Sedang Diracik'
-  | 'Pengecekan'
   | 'Siap Diambil'
   | 'Selesai Diambil'
-  | 'Tebus Luar';
+  | 'Dibatalkan';
 
-export type PilihanTebus = 'belum_memilih' | 'apotek_rs' | 'apotek_luar';
-
-export type Ketersediaan = 'tersedia' | 'sebagian' | 'kosong';
+export type PilihanPenebusan = 'Belum Memilih' | 'Apotek RS' | 'Apotek Luar';
 
 export type JenisObat = 'Jadi' | 'Racikan';
 
 export type JenisNotifikasi =
-  | 'verifikasi_wa'
-  | 'konfirmasi_booking'
-  | 'pengingat_hari_h'
-  | 'info_giliran'
-  | 'info_ketersediaan'
-  | 'qr_resep'
-  | 'obat_siap'
-  | 'selesai';
+  | 'Verifikasi WA'
+  | 'Konfirmasi Pendaftaran'
+  | 'Pengingat Kunjungan'
+  | 'QR Resep'
+  | 'Obat Siap';
 
-export type StatusKirim = 'antrian' | 'terkirim' | 'gagal';
+export type ChannelNotifikasi = 'WhatsApp' | 'PWA';
 
-export type JenisStok = 'masuk' | 'keluar' | 'penyesuaian';
+export type StatusNotifikasi = 'Pending' | 'Terkirim' | 'Gagal';
+
+export type JenisMutasi = 'Masuk' | 'Keluar' | 'Penyesuaian';
+
+export type DiambilOleh = 'Pasien' | 'Keluarga';
+
+export type MetodeVerifikasi = 'QR' | 'QR + PIN' | 'QR + OTP';
+
+export type StatusPengambilan = 'Berhasil' | 'Ditolak';
+
+/** Dihitung dari stok, tidak disimpan di tabel detail_resep. */
+export type Ketersediaan = 'tersedia' | 'sebagian' | 'kosong';
 
 export interface User {
   id_user: number;
@@ -62,11 +60,8 @@ export interface User {
   password_hash: string;
   role: Role;
   nama_lengkap: string;
-  email: string;
-  no_wa: string;
-  wa_terverifikasi_pada: string | null;
-  is_aktif: boolean;
-  last_login: string | null;
+  no_telepon: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -74,66 +69,64 @@ export interface User {
 export interface Pasien {
   id_pasien: number;
   id_user: number;
-  /** NIK tidak disimpan polos. Lihat encryptNik. */
-  nik_terenkripsi: string;
-  no_rekam_medis: string;
-  nama: string;
-  no_telepon: string;
+  nik: string;
+  nomor_bpjs: string | null;
+  nama_lengkap: string;
   tanggal_lahir: string;
   jenis_kelamin: JenisKelamin;
-  alamat: string;
-  no_bpjs: string | null;
+  alamat: string | null;
+  no_telepon: string;
   terdaftar_satusehat: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Dokter {
   id_dokter: number;
   id_user: number;
   id_poli: number;
-  no_sip: string;
-  spesialisasi: string;
-  /** Menit rata-rata per pasien. Dipakai estimasi jam masuk poli. */
+  nama_dokter: string;
+  spesialisasi: string | null;
   rata_waktu_periksa_menit: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface Apoteker {
-  id_apoteker: number;
-  id_user: number;
-  no_sipa: string;
-}
-
-export interface Poli {
+export interface Poliklinik {
   id_poli: number;
-  kode: string;
   nama_poli: string;
+  deskripsi: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface JadwalDokter {
   id_jadwal: number;
   id_dokter: number;
-  id_poli: number;
   hari: Hari;
   jam_mulai: string;
   jam_selesai: string;
-  kuota: number;
+  kuota_maksimal: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Obat {
   id_obat: number;
-  kode_obat: string;
   kode_kemenkes: string;
   nama_obat: string;
   jenis_obat: JenisObat;
   satuan: string;
-  bentuk_kekuatan: string;
-  stok: number;
+  cover_bpjs: boolean;
+  stok_rs: number;
   stok_minimum: number;
   harga: number;
-  cover_bpjs: boolean;
-  is_aktif: boolean;
-  /** Opsional. Tidak semua obat punya batch di master. */
-  tanggal_kedaluwarsa: string | null;
-  nomor_batch: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PendaftaranPoli {
@@ -142,16 +135,12 @@ export interface PendaftaranPoli {
   id_jadwal: number;
   tanggal_kunjungan: string;
   nomor_antrean: number;
-  kode_booking: string;
-  jenis_penjamin: JenisPenjamin;
-  status_antrean: StatusAntrean;
-  /** Posisi pada 10 tahap alur antrean dan farmasi (prototipe UI). */
-  tahap_alur: number;
   waktu_check_in: string | null;
-  waktu_dibatalkan: string | null;
-  estimasi_jam_masuk: string;
-  loket: string;
+  estimasi_jam_masuk: string | null;
+  status_antrean: StatusAntrean;
+  catatan_pasien: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Pemeriksaan {
@@ -159,39 +148,30 @@ export interface Pemeriksaan {
   id_pendaftaran: number;
   id_dokter: number;
   keluhan: string;
-  durasi_keluhan: string;
-  alergi: string;
+  tekanan_darah: string | null;
+  suhu_tubuh: number | null;
+  berat_badan: number | null;
+  tinggi_badan: number | null;
   diagnosis: string;
   tindakan: string;
-  catatan: string;
-  kode_icd10: string;
-  tensi: string;
-  suhu: string;
-  berat_badan: string;
-  jadwal_kontrol: string;
+  catatan_dokter: string | null;
   waktu_mulai: string | null;
   waktu_selesai: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Resep {
   id_resep: number;
-  nomor_resep: string;
-  id_pemeriksaan: number;
   id_pendaftaran: number;
-  id_dokter: number;
-  id_apoteker: number | null;
-  kode_qr: string;
-  kode_qr_kedaluwarsa: string | null;
-  qr_dipakai: boolean;
-  pin_pengambil: string | null;
-  status_resep: StatusResep;
-  pilihan_tebus: PilihanTebus;
-  estimasi_selesai: string | null;
+  kode_qr_unik: string;
   waktu_diterbitkan: string;
-  waktu_dikirim: string | null;
-  waktu_siap: string | null;
-  waktu_diambil: string | null;
-  diverifikasi_oleh: number | null;
+  pilihan_penebusan: PilihanPenebusan;
+  estimasi_jam_selesai: string | null;
+  status_resep: StatusResep;
+  kadaluarsa_qr: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DetailResep {
@@ -199,81 +179,81 @@ export interface DetailResep {
   id_resep: number;
   id_obat: number;
   jumlah: number;
-  dosis: string;
-  aturan_pakai: string;
+  dosis_aturan_pakai: string;
   instruksi_racikan: string | null;
-  status_ketersediaan: Ketersediaan;
+  catatan: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Notifikasi {
   id_notifikasi: number;
-  id_user: number;
-  jenis_kejadian: JenisNotifikasi;
-  kanal: 'whatsapp' | 'push';
-  isi_pesan: string;
-  status_kirim: StatusKirim;
-  jumlah_percobaan: number;
-  waktu_kirim: string | null;
-  referensi_id: string;
+  id_pasien: number;
+  id_pendaftaran: number | null;
+  jenis_notifikasi: JenisNotifikasi;
+  /** Aplikasi ini mengisi PWA. Skema juga mengizinkan WhatsApp. */
+  channel: ChannelNotifikasi;
+  nomor_tujuan: string;
+  pesan: string;
+  status: StatusNotifikasi;
+  waktu_dikirim: string | null;
+  response_api: string | null;
+  created_at: string;
 }
 
-export interface PushSubscription {
-  id_subscription: number;
+export interface OtpVerifikasi {
+  id_otp: number;
   id_user: number;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  dibuat_pada: string;
+  kode_otp: string;
+  tujuan: string;
+  expired_at: string;
+  verified_at: string | null;
+  attempt: number;
+  created_at: string;
 }
 
-export interface LogStok {
-  id_log: number;
+export interface PengambilanObat {
+  id_pengambilan: number;
+  id_resep: number;
+  id_user_petugas: number;
+  diambil_oleh: DiambilOleh;
+  nama_pengambil: string | null;
+  waktu_pengambilan: string;
+  metode_verifikasi: MetodeVerifikasi;
+  status: StatusPengambilan;
+  catatan: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MutasiStok {
+  id_mutasi: number;
   id_obat: number;
-  jenis: JenisStok;
+  id_user: number;
+  jenis_mutasi: JenisMutasi;
   jumlah: number;
   stok_sebelum: number;
   stok_sesudah: number;
-  keterangan: string;
-  id_user: number;
-  id_detail: number | null;
-  waktu: string;
+  keterangan: string | null;
+  created_at: string;
 }
 
-export interface LogStatusResep {
+export interface LogAktivitas {
   id_log: number;
-  id_resep: number;
-  status_lama: string;
-  status_baru: StatusResep;
-  id_user: number;
-  waktu: string;
-  catatan: string;
-}
-
-export interface RefreshToken {
-  id_token: number;
-  id_user: number;
-  token_hash: string;
-  kedaluwarsa: string;
-  dicabut_pada: string | null;
-  dibuat_pada: string;
-}
-
-export interface AuditLog {
-  id_audit: number;
-  id_user: number;
-  aksi: string;
-  entitas: string;
-  id_entitas: number;
-  waktu: string;
-  keterangan: string;
+  id_user: number | null;
+  aktivitas: string;
+  tabel_referensi: string | null;
+  id_referensi: number | null;
+  keterangan: string | null;
+  ip_address: string | null;
+  created_at: string;
 }
 
 export interface Database {
   users: User[];
   pasien: Pasien[];
   dokter: Dokter[];
-  apoteker: Apoteker[];
-  poli: Poli[];
+  poliklinik: Poliklinik[];
   jadwal_dokter: JadwalDokter[];
   obat: Obat[];
   pendaftaran_poli: PendaftaranPoli[];
@@ -281,16 +261,13 @@ export interface Database {
   resep: Resep[];
   detail_resep: DetailResep[];
   notifikasi: Notifikasi[];
-  push_subscription: PushSubscription[];
-  log_stok: LogStok[];
-  log_status_resep: LogStatusResep[];
-  refresh_token: RefreshToken[];
-  audit_log: AuditLog[];
+  otp_verifikasi: OtpVerifikasi[];
+  pengambilan_obat: PengambilanObat[];
+  mutasi_stok: MutasiStok[];
+  log_aktivitas: LogAktivitas[];
 }
 
 export interface Session {
   id_user: number;
   role: Role;
-  refresh_id: number;
-  access_token: string;
 }

@@ -8,22 +8,23 @@ import {
   bolehTebusRs,
   estimasiFarmasiMenit,
   estimasiJamMasuk,
+  hitungTahap,
+  judulNotifikasi,
   namaHari,
   qrMasihBerlaku,
   statusKetersediaan,
+  tambahJam,
   tanggalIso,
   teksNotifikasi,
-  tambahJam,
 } from './rules';
 import type {
-  AuditLog,
   Database,
   DetailResep,
   JadwalDokter,
   JenisNotifikasi,
-  JenisPenjamin,
   Ketersediaan,
-  LogStok,
+  LogAktivitas,
+  MutasiStok,
   Notifikasi,
   Obat,
   Pemeriksaan,
@@ -35,8 +36,9 @@ import type {
   User,
 } from './types';
 
-const DB_KEY = 'mediflow-db-v1';
-const SESSION_KEY = 'mediflow-session-v1';
+const DB_KEY = 'mediflow-db-v2';
+const SESSION_KEY = 'mediflow-session-v2';
+const BACA_KEY = 'mediflow-baca-v2';
 
 export type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -45,13 +47,17 @@ export interface DetailTampil extends DetailResep {
   ketersediaan: Ketersediaan;
 }
 
+export interface NotifikasiTampil extends Notifikasi {
+  dibaca: boolean;
+}
+
 export interface Kunjungan {
   pendaftaran: PendaftaranPoli;
   pasienNama: string;
-  noRekamMedis: string;
+  nomorBpjs: string | null;
   idUserPasien: number;
+  idPasien: number;
   poliNama: string;
-  poliKode: string;
   dokterNama: string;
   spesialisasi: string;
   idDokter: number;
@@ -61,6 +67,11 @@ export interface Kunjungan {
   resep: Resep | null;
   detail: DetailTampil[];
   bolehRs: boolean;
+  tahap: number;
+  resepTerkirim: boolean;
+  qrDipakai: boolean;
+  pinKeluarga: string | null;
+  selesai: boolean;
 }
 
 export interface SlotJadwal {
@@ -79,16 +90,42 @@ function nextId<T>(rows: T[], key: keyof T): number {
   return rows.reduce((max, row) => Math.max(max, Number(row[key]) || 0), 0) + 1;
 }
 
+function sekarangIso(): string {
+  return new Date().toISOString();
+}
+
+function angka(nilai: string): number | null {
+  const angka = Number(String(nilai).replace(',', '.'));
+  if (!Number.isFinite(angka)) return null;
+  return angka;
+}
+
 function loadDb(): Database {
   try {
     const raw = localStorage.getItem(DB_KEY);
     if (!raw) return createDatabase();
     const parsed = JSON.parse(raw) as Database;
-    if (!Array.isArray(parsed.users) || !Array.isArray(parsed.poli)) return createDatabase();
+    if (!Array.isArray(parsed.users) || !Array.isArray(parsed.poliklinik) || !Array.isArray(parsed.mutasi_stok)) {
+      return createDatabase();
+    }
     return parsed;
   } catch {
     return createDatabase();
   }
+}
+
+function bacaIds(): Set<number> {
+  try {
+    const raw = sessionStorage.getItem(BACA_KEY);
+    const ids = raw ? (JSON.parse(raw) as number[]) : [];
+    return new Set(Array.isArray(ids) ? ids : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function simpanBaca(ids: Set<number>): void {
+  sessionStorage.setItem(BACA_KEY, JSON.stringify([...ids]));
 }
 
 class MediflowStore {
@@ -119,8 +156,8 @@ class MediflowStore {
       const raw = sessionStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       const session = JSON.parse(raw) as Session;
-      const token = this.db.refresh_token.find((row) => row.id_token === session.refresh_id);
-      if (!token || token.dicabut_pada || new Date(token.kedaluwarsa).getTime() < Date.now()) return null;
+      const user = this.db.users.find((row) => row.id_user === session.id_user && row.is_active);
+      if (!user || user.role !== session.role) return null;
       return session;
     } catch {
       return null;
@@ -130,7 +167,7 @@ class MediflowStore {
   private actor(): User | null {
     const session = this.session();
     if (!session) return null;
-    return this.db.users.find((user) => user.id_user === session.id_user && user.is_aktif) ?? null;
+    return this.db.users.find((user) => user.id_user === session.id_user && user.is_active) ?? null;
   }
 
   snapshot(): Database {
@@ -139,45 +176,23 @@ class MediflowStore {
 
   async login(username: string, password: string): Promise<Result<Session>> {
     const user = this.db.users.find(
-      (row) => row.username.toLowerCase() === username.trim().toLowerCase() && row.is_aktif
+      (row) => row.username.toLowerCase() === username.trim().toLowerCase() && row.is_active
     );
     if (!user) return gagal('Akun tidak ditemukan atau nonaktif.');
     const hash = await hashPassword(password);
     if (hash !== user.password_hash) return gagal('Kata sandi tidak sesuai.');
 
-    const sekarang = new Date().toISOString();
-    user.last_login = sekarang;
-    user.updated_at = sekarang;
-    const secret = randomToken(24);
-    const tokenHash = await hashPassword(secret);
-    const refresh = {
-      id_token: nextId(this.db.refresh_token, 'id_token'),
-      id_user: user.id_user,
-      token_hash: tokenHash,
-      kedaluwarsa: tambahJam(sekarang, 24 * 7),
-      dicabut_pada: null,
-      dibuat_pada: sekarang,
-    };
-    this.db.refresh_token.push(refresh);
-    this.audit(user.id_user, 'LOGIN', 'users', user.id_user, `Masuk sebagai ${user.role}`);
-    const session: Session = {
-      id_user: user.id_user,
-      role: user.role,
-      refresh_id: refresh.id_token,
-      access_token: randomToken(16),
-    };
+    user.updated_at = sekarangIso();
+    const session: Session = { id_user: user.id_user, role: user.role };
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    this.catat(user.id_user, 'LOGIN', 'users', user.id_user, `Masuk sebagai ${user.role}`);
     this.emit();
     return { ok: true, data: session };
   }
 
   logout(): void {
     const session = this.session();
-    if (session) {
-      const token = this.db.refresh_token.find((row) => row.id_token === session.refresh_id);
-      if (token) token.dicabut_pada = new Date().toISOString();
-      this.audit(session.id_user, 'LOGOUT', 'users', session.id_user, 'Keluar dari sesi');
-    }
+    if (session) this.catat(session.id_user, 'LOGOUT', 'users', session.id_user, 'Keluar dari sesi');
     sessionStorage.removeItem(SESSION_KEY);
     this.emit();
   }
@@ -185,32 +200,16 @@ class MediflowStore {
   resetDemo(): void {
     const actor = this.actor();
     this.db = createDatabase();
-    this.persist();
+    sessionStorage.removeItem(BACA_KEY);
     sessionStorage.removeItem(SESSION_KEY);
     if (actor) {
       const user = this.db.users.find((row) => row.id_user === actor.id_user);
       if (user) {
-        const sekarang = new Date().toISOString();
-        const secret = randomToken(24);
-        const refresh = {
-          id_token: 1,
-          id_user: user.id_user,
-          token_hash: secret,
-          kedaluwarsa: tambahJam(sekarang, 24 * 7),
-          dicabut_pada: null,
-          dibuat_pada: sekarang,
-        };
-        this.db.refresh_token.push(refresh);
-        const session: Session = {
-          id_user: user.id_user,
-          role: user.role,
-          refresh_id: refresh.id_token,
-          access_token: randomToken(16),
-        };
+        const session: Session = { id_user: user.id_user, role: user.role };
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        this.persist();
       }
     }
+    this.persist();
     this.listeners.forEach((listener) => listener());
   }
 
@@ -227,21 +226,15 @@ class MediflowStore {
   dokterAktif() {
     const actor = this.actor();
     if (!actor) return null;
-    return this.db.dokter.find((row) => row.id_user === actor.id_user) ?? null;
-  }
-
-  apotekerAktif() {
-    const actor = this.actor();
-    if (!actor) return null;
-    return this.db.apoteker.find((row) => row.id_user === actor.id_user) ?? null;
+    return this.db.dokter.find((row) => row.id_user === actor.id_user && row.is_active) ?? null;
   }
 
   poli() {
-    return this.db.poli;
+    return this.db.poliklinik.filter((row) => row.is_active);
   }
 
   obatAktif(): Obat[] {
-    return this.db.obat.filter((row) => row.is_aktif);
+    return this.db.obat.filter((row) => row.is_active);
   }
 
   kunjungan(): Kunjungan[] {
@@ -260,11 +253,13 @@ class MediflowStore {
   slotHari(tanggal = tanggalIso(), idPoli?: number): SlotJadwal[] {
     const hari = namaHari(new Date(`${tanggal}T12:00:00+07:00`));
     return this.db.jadwal_dokter
-      .filter((row) => row.hari === hari && (idPoli ? row.id_poli === idPoli : true))
+      .filter((row) => row.is_active && row.hari === hari)
       .map((jadwal) => {
-        const dokter = this.db.dokter.find((row) => row.id_dokter === jadwal.id_dokter)!;
-        const user = this.db.users.find((row) => row.id_user === dokter.id_user)!;
-        const poli = this.db.poli.find((row) => row.id_poli === jadwal.id_poli)!;
+        const dokter = this.db.dokter.find((row) => row.id_dokter === jadwal.id_dokter && row.is_active);
+        if (!dokter) return null;
+        if (idPoli && dokter.id_poli !== idPoli) return null;
+        const poli = this.db.poliklinik.find((row) => row.id_poli === dokter.id_poli && row.is_active);
+        if (!poli) return null;
         const terpakai = this.db.pendaftaran_poli.filter(
           (row) =>
             row.id_jadwal === jadwal.id_jadwal &&
@@ -273,83 +268,77 @@ class MediflowStore {
         ).length;
         return {
           jadwal,
-          dokterNama: user.nama_lengkap,
-          spesialisasi: dokter.spesialisasi,
+          dokterNama: dokter.nama_dokter,
+          spesialisasi: dokter.spesialisasi ?? '',
           poliNama: poli.nama_poli,
-          sisa: Math.max(0, jadwal.kuota - terpakai),
+          sisa: Math.max(0, jadwal.kuota_maksimal - terpakai),
         };
-      });
+      })
+      .filter((row): row is SlotJadwal => row !== null);
   }
 
-  notifikasiUser(idUser?: number): Notifikasi[] {
+  notifikasiUser(idUser?: number): NotifikasiTampil[] {
     const id = idUser ?? this.actor()?.id_user;
     if (!id) return [];
+    const pasien = this.db.pasien.find((row) => row.id_user === id);
+    if (!pasien) return [];
+    const dibaca = bacaIds();
     return this.db.notifikasi
-      .filter((row) => row.id_user === id)
+      .filter((row) => row.id_pasien === pasien.id_pasien)
       .slice()
-      .sort((a, b) => b.id_notifikasi - a.id_notifikasi);
+      .sort((a, b) => b.id_notifikasi - a.id_notifikasi)
+      .map((row) => ({ ...row, dibaca: dibaca.has(row.id_notifikasi) }));
   }
 
-  auditTerbaru(batas = 6): AuditLog[] {
-    return this.db.audit_log.slice().sort((a, b) => b.id_audit - a.id_audit).slice(0, batas);
+  jumlahBelumDibaca(idUser?: number): number {
+    return this.notifikasiUser(idUser).filter((row) => !row.dibaca).length;
   }
 
-  logStokTerbaru(batas = 6): LogStok[] {
-    return this.db.log_stok.slice().sort((a, b) => b.id_log - a.id_log).slice(0, batas);
+  tandaiDibaca(idNotifikasi?: number): void {
+    const pasien = this.pasienAktif();
+    if (!pasien) return;
+    const ids = bacaIds();
+    let berubah = false;
+    this.db.notifikasi.forEach((row) => {
+      if (row.id_pasien !== pasien.id_pasien || ids.has(row.id_notifikasi)) return;
+      if (idNotifikasi !== undefined && row.id_notifikasi !== idNotifikasi) return;
+      ids.add(row.id_notifikasi);
+      berubah = true;
+    });
+    if (berubah) simpanBaca(ids);
+    if (berubah) this.listeners.forEach((listener) => listener());
+  }
+
+  aktivitasTerbaru(batas = 6): LogAktivitas[] {
+    return this.db.log_aktivitas.slice().sort((a, b) => b.id_log - a.id_log).slice(0, batas);
+  }
+
+  mutasiTerbaru(batas = 6): MutasiStok[] {
+    return this.db.mutasi_stok.slice().sort((a, b) => b.id_mutasi - a.id_mutasi).slice(0, batas);
   }
 
   catatAksesRekam(idPendaftaran: number): void {
     const actor = this.actor();
     if (!actor || actor.role === 'pasien') return;
-    const sudah = this.db.audit_log.some(
+    const sudah = this.db.log_aktivitas.some(
       (row) =>
         row.id_user === actor.id_user &&
-        row.aksi === 'LIHAT_REKAM_MEDIS' &&
-        row.id_entitas === idPendaftaran &&
-        Date.now() - new Date(row.waktu).getTime() < 10 * 60 * 1000
+        row.aktivitas === 'LIHAT_REKAM_MEDIS' &&
+        row.id_referensi === idPendaftaran &&
+        Date.now() - new Date(row.created_at).getTime() < 10 * 60 * 1000
     );
     if (sudah) return;
-    this.audit(actor.id_user, 'LIHAT_REKAM_MEDIS', 'pemeriksaan', idPendaftaran, 'Membuka data medis kunjungan');
+    this.catat(actor.id_user, 'LIHAT_REKAM_MEDIS', 'pemeriksaan', idPendaftaran, 'Membuka data medis kunjungan');
     this.emit();
   }
 
-  async aktifkanPush(): Promise<Result<null>> {
-    const actor = this.actor();
-    if (!actor) return gagal('Silakan masuk kembali.');
-    const ada = this.db.push_subscription.some((row) => row.id_user === actor.id_user);
-    if (!ada) {
-      this.db.push_subscription.push({
-        id_subscription: nextId(this.db.push_subscription, 'id_subscription'),
-        id_user: actor.id_user,
-        endpoint: `local://perangkat-${actor.id_user}-${randomToken(4)}`,
-        p256dh: 'demo-p256dh',
-        auth: 'demo-auth',
-        dibuat_pada: new Date().toISOString(),
-      });
-      this.emit();
-    }
-    return { ok: true, data: null };
-  }
-
-  punyaPush(): boolean {
-    const actor = this.actor();
-    if (!actor) return false;
-    return this.db.push_subscription.some((row) => row.id_user === actor.id_user);
-  }
-
-  daftar(input: {
-    idJadwal: number;
-    jenisPenjamin: JenisPenjamin;
-    keluhan: string;
-    durasi: string;
-    alergi: string;
-  }): Result<number> {
+  daftar(input: { idJadwal: number; keluhan: string }): Result<number> {
     const actor = this.actor();
     const pasien = this.pasienAktif();
     if (!actor || !pasien || actor.role !== 'pasien') return gagal('Hanya pasien yang dapat mendaftar.');
     const keluhan = input.keluhan.trim();
     if (!keluhan) return gagal('Keluhan utama wajib diisi.');
-    const jadwal = this.db.jadwal_dokter.find((row) => row.id_jadwal === input.idJadwal);
+    const jadwal = this.db.jadwal_dokter.find((row) => row.id_jadwal === input.idJadwal && row.is_active);
     if (!jadwal) return gagal('Jadwal tidak ditemukan.');
     const tanggal = tanggalIso();
     if (jadwal.hari !== namaHari(new Date(`${tanggal}T12:00:00+07:00`))) {
@@ -361,17 +350,18 @@ class MediflowStore {
     const terpakai = this.db.pendaftaran_poli.filter(
       (row) => row.id_jadwal === jadwal.id_jadwal && row.tanggal_kunjungan === tanggal && row.status_antrean !== 'Batal'
     );
-    if (terpakai.length >= jadwal.kuota) return gagal('Kuota jadwal ini sudah penuh.');
-    const nomor = terpakai.reduce((max, row) => Math.max(max, row.nomor_antrean), 0) + 1;
+    if (terpakai.length >= jadwal.kuota_maksimal) return gagal('Kuota jadwal ini sudah penuh.');
+    const nomor = this.db.pendaftaran_poli
+      .filter((row) => row.id_jadwal === jadwal.id_jadwal && row.tanggal_kunjungan === tanggal)
+      .reduce((max, row) => Math.max(max, row.nomor_antrean), 0) + 1;
     if (bentrokNomorAntrean(this.db.pendaftaran_poli, jadwal.id_jadwal, tanggal, nomor)) {
       return gagal('Nomor antrean bentrok. Coba sekali lagi.');
     }
-    const dokter = this.db.dokter.find((row) => row.id_dokter === jadwal.id_dokter)!;
-    const poli = this.db.poli.find((row) => row.id_poli === jadwal.id_poli)!;
-    const sekarang = new Date().toISOString();
+    const dokter = this.db.dokter.find((row) => row.id_dokter === jadwal.id_dokter);
+    const poli = dokter ? this.db.poliklinik.find((row) => row.id_poli === dokter.id_poli) : undefined;
+    if (!dokter || !poli) return gagal('Dokter atau poliklinik tidak ditemukan.');
+    const sekarang = sekarangIso();
     const idPendaftaran = nextId(this.db.pendaftaran_poli, 'id_pendaftaran');
-    const idPemeriksaan = nextId(this.db.pemeriksaan, 'id_pemeriksaan');
-    const kode = this.kodeBooking(poli.kode);
     const estimasi = estimasiJamMasuk(tanggal, jadwal.jam_mulai, nomor, dokter.rata_waktu_periksa_menit);
     this.db.pendaftaran_poli.push({
       id_pendaftaran: idPendaftaran,
@@ -379,60 +369,57 @@ class MediflowStore {
       id_jadwal: jadwal.id_jadwal,
       tanggal_kunjungan: tanggal,
       nomor_antrean: nomor,
-      kode_booking: kode,
-      jenis_penjamin: input.jenisPenjamin,
-      status_antrean: 'Terdaftar',
-      tahap_alur: 1,
       waktu_check_in: null,
-      waktu_dibatalkan: null,
       estimasi_jam_masuk: estimasi,
-      loket: input.jenisPenjamin === 'bpjs' ? 'Loket Farmasi A (BPJS)' : 'Loket Farmasi B (Umum/Eksekutif)',
+      status_antrean: 'Menunggu',
+      catatan_pasien: keluhan,
       created_at: sekarang,
+      updated_at: sekarang,
     });
     this.db.pemeriksaan.push({
-      id_pemeriksaan: idPemeriksaan,
+      id_pemeriksaan: nextId(this.db.pemeriksaan, 'id_pemeriksaan'),
       id_pendaftaran: idPendaftaran,
       id_dokter: dokter.id_dokter,
       keluhan,
-      durasi_keluhan: input.durasi.trim() || '-',
-      alergi: input.alergi.trim() || 'Tidak Ada',
+      tekanan_darah: null,
+      suhu_tubuh: null,
+      berat_badan: null,
+      tinggi_badan: null,
       diagnosis: '',
       tindakan: '',
-      catatan: '',
-      kode_icd10: '',
-      tensi: '',
-      suhu: '',
-      berat_badan: '',
-      jadwal_kontrol: '',
+      catatan_dokter: null,
       waktu_mulai: null,
       waktu_selesai: null,
+      created_at: sekarang,
+      updated_at: sekarang,
     });
     const ctx = {
-      kode,
       poli: poli.nama_poli,
       tanggal: formatTanggal(tanggal),
       jam: formatJam(estimasi),
       nomor,
     };
-    this.kirimPesan(actor.id_user, 'konfirmasi_booking', ctx, `pendaftaran:${idPendaftaran}`);
-    this.kirimPesan(actor.id_user, 'pengingat_hari_h', ctx, `pendaftaran:${idPendaftaran}`);
-    this.audit(actor.id_user, 'DAFTAR_POLI', 'pendaftaran_poli', idPendaftaran, kode);
+    this.kirimPesan(pasien.id_pasien, idPendaftaran, 'Konfirmasi Pendaftaran', ctx);
+    this.kirimPesan(pasien.id_pasien, idPendaftaran, 'Pengingat Kunjungan', ctx);
+    this.catat(actor.id_user, 'DAFTAR_POLI', 'pendaftaran_poli', idPendaftaran, `Antrean ${nomor} ${poli.nama_poli}`);
     this.emit();
     return { ok: true, data: idPendaftaran };
   }
 
-  simpanKeluhan(idPendaftaran: number, keluhan: string, durasi: string, alergi: string): Result<null> {
+  simpanKeluhan(idPendaftaran: number, keluhan: string): Result<null> {
     const actor = this.actor();
     const kunjungan = this.kunjunganById(idPendaftaran);
     if (!actor || !kunjungan) return gagal('Kunjungan tidak ditemukan.');
     if (actor.role !== 'pasien' || kunjungan.idUserPasien !== actor.id_user) {
       return gagal('Keluhan hanya dapat diubah oleh pasien.');
     }
-    if (kunjungan.pendaftaran.tahap_alur >= 5) return gagal('Pemeriksaan sudah dikunci.');
+    if (kunjungan.tahap >= 5 || kunjungan.selesai) return gagal('Pemeriksaan sudah dikunci.');
     if (!keluhan.trim()) return gagal('Keluhan tidak boleh kosong.');
+    const sekarang = sekarangIso();
     kunjungan.pemeriksaan.keluhan = keluhan.trim();
-    kunjungan.pemeriksaan.durasi_keluhan = durasi.trim() || '-';
-    kunjungan.pemeriksaan.alergi = alergi.trim() || 'Tidak Ada';
+    kunjungan.pemeriksaan.updated_at = sekarang;
+    kunjungan.pendaftaran.catatan_pasien = keluhan.trim();
+    kunjungan.pendaftaran.updated_at = sekarang;
     this.emit();
     return { ok: true, data: null };
   }
@@ -444,17 +431,14 @@ class MediflowStore {
     if (kunjungan.idUserPasien !== actor.id_user) return gagal('Check-in hanya untuk pasien pemilik kunjungan.');
     if (kunjungan.pendaftaran.waktu_check_in) return gagal('Check-in sudah tercatat.');
     if (kunjungan.pendaftaran.status_antrean === 'Batal') return gagal('Pendaftaran dibatalkan.');
-    kunjungan.pendaftaran.waktu_check_in = new Date().toISOString();
-    this.kirimPesan(
-      actor.id_user,
-      'info_giliran',
-      {
-        kode: kunjungan.pendaftaran.kode_booking,
-        jam: formatJam(kunjungan.pendaftaran.estimasi_jam_masuk),
-        mode: 'checkin',
-      },
-      `pendaftaran:${idPendaftaran}`
-    );
+    const sekarang = sekarangIso();
+    kunjungan.pendaftaran.waktu_check_in = sekarang;
+    kunjungan.pendaftaran.updated_at = sekarang;
+    this.kirimPesan(kunjungan.idPasien, idPendaftaran, 'Pengingat Kunjungan', {
+      nomor: kunjungan.pendaftaran.nomor_antrean,
+      jam: formatJam(kunjungan.pendaftaran.estimasi_jam_masuk),
+      mode: 'checkin',
+    });
     this.emit();
     return { ok: true, data: null };
   }
@@ -465,32 +449,46 @@ class MediflowStore {
     if (!actor || !kunjungan) return gagal('Kunjungan tidak ditemukan.');
     const pemilik = kunjungan.idUserPasien === actor.id_user;
     if (!pemilik && actor.role !== 'admin') return gagal('Anda tidak dapat membatalkan kunjungan ini.');
-    if (kunjungan.pendaftaran.tahap_alur > 3) return gagal('Kunjungan yang sudah masuk ruang tidak dapat dibatalkan.');
+    if (kunjungan.tahap > 3) return gagal('Kunjungan yang sudah masuk ruang tidak dapat dibatalkan.');
+    if (kunjungan.pendaftaran.status_antrean === 'Batal') return gagal('Pendaftaran sudah dibatalkan.');
+    const sekarang = sekarangIso();
     kunjungan.pendaftaran.status_antrean = 'Batal';
-    kunjungan.pendaftaran.waktu_dibatalkan = new Date().toISOString();
-    this.audit(actor.id_user, 'BATAL_DAFTAR', 'pendaftaran_poli', idPendaftaran, kunjungan.pendaftaran.kode_booking);
+    kunjungan.pendaftaran.updated_at = sekarang;
+    const resep = kunjungan.resep;
+    if (resep && resep.status_resep !== 'Selesai Diambil') {
+      resep.status_resep = 'Dibatalkan';
+      resep.updated_at = sekarang;
+    }
+    this.catat(actor.id_user, 'BATAL_DAFTAR', 'pendaftaran_poli', idPendaftaran, `Antrean ${kunjungan.pendaftaran.nomor_antrean}`);
     this.emit();
     return { ok: true, data: null };
   }
 
-  simpanVital(idPendaftaran: number, tensi: string, suhu: string, berat: string, loket: string): Result<null> {
+  simpanVital(idPendaftaran: number, tekanan: string, suhu: string, berat: string, tinggi: string): Result<null> {
     const actor = this.actor();
     const kunjungan = this.kunjunganById(idPendaftaran);
     if (!actor || !kunjungan) return gagal('Kunjungan tidak ditemukan.');
     if (actor.role !== 'admin') return gagal('Tanda vital diisi oleh perawat atau admin.');
-    if (!tensi.trim() || !suhu.trim() || !berat.trim()) return gagal('Tensi, suhu, dan berat badan wajib diisi.');
-    kunjungan.pemeriksaan.tensi = tensi.trim();
-    kunjungan.pemeriksaan.suhu = suhu.trim();
-    kunjungan.pemeriksaan.berat_badan = berat.trim();
-    if (loket.trim()) kunjungan.pendaftaran.loket = loket.trim();
-    this.audit(actor.id_user, 'SIMPAN_VITAL', 'pemeriksaan', kunjungan.pemeriksaan.id_pemeriksaan, 'Tanda vital diperbarui');
+    const suhuAngka = angka(suhu);
+    const beratAngka = angka(berat);
+    const tinggiAngka = angka(tinggi);
+    if (!tekanan.trim() || suhuAngka === null || beratAngka === null || tinggiAngka === null) {
+      return gagal('Tekanan darah, suhu, berat, dan tinggi badan wajib diisi.');
+    }
+    const pemeriksaan = kunjungan.pemeriksaan;
+    pemeriksaan.tekanan_darah = tekanan.trim();
+    pemeriksaan.suhu_tubuh = suhuAngka;
+    pemeriksaan.berat_badan = beratAngka;
+    pemeriksaan.tinggi_badan = tinggiAngka;
+    pemeriksaan.updated_at = sekarangIso();
+    this.catat(actor.id_user, 'SIMPAN_VITAL', 'pemeriksaan', pemeriksaan.id_pemeriksaan, 'Tanda vital diperbarui');
     this.emit();
     return { ok: true, data: null };
   }
 
   simpanPemeriksaan(
     idPendaftaran: number,
-    input: { kodeIcd: string; diagnosis: string; catatan: string; tindakan: string; kontrol: string }
+    input: { diagnosis: string; catatan: string; tindakan: string }
   ): Result<null> {
     const actor = this.actor();
     const kunjungan = this.kunjunganById(idPendaftaran);
@@ -498,16 +496,18 @@ class MediflowStore {
     if (actor.role !== 'dokter' || actor.id_user !== kunjungan.idUserDokter) {
       return gagal('Pemeriksaan ini milik dokter jadwal tersebut.');
     }
-    if (kunjungan.pendaftaran.tahap_alur < 4) return gagal('Pasien belum masuk ruang periksa.');
-    if (!input.kodeIcd.trim() || !input.catatan.trim()) return gagal('ICD-10 dan catatan pemeriksaan wajib diisi.');
+    if (kunjungan.tahap < 4) return gagal('Pasien belum masuk ruang periksa.');
+    if (!input.diagnosis.trim() || !input.catatan.trim() || !input.tindakan.trim()) {
+      return gagal('Diagnosis, tindakan, dan catatan pemeriksaan wajib diisi.');
+    }
     const pemeriksaan = kunjungan.pemeriksaan;
-    pemeriksaan.kode_icd10 = input.kodeIcd.trim();
+    const sekarang = sekarangIso();
     pemeriksaan.diagnosis = input.diagnosis.trim();
-    pemeriksaan.catatan = input.catatan.trim();
+    pemeriksaan.catatan_dokter = input.catatan.trim();
     pemeriksaan.tindakan = input.tindakan.trim();
-    pemeriksaan.jadwal_kontrol = input.kontrol.trim();
-    if (!pemeriksaan.waktu_mulai) pemeriksaan.waktu_mulai = new Date().toISOString();
-    this.audit(actor.id_user, 'SIMPAN_PEMERIKSAAN', 'pemeriksaan', pemeriksaan.id_pemeriksaan, input.kodeIcd);
+    if (!pemeriksaan.waktu_mulai) pemeriksaan.waktu_mulai = sekarang;
+    pemeriksaan.updated_at = sekarang;
+    this.catat(actor.id_user, 'SIMPAN_PEMERIKSAAN', 'pemeriksaan', pemeriksaan.id_pemeriksaan, input.diagnosis);
     this.emit();
     return { ok: true, data: null };
   }
@@ -516,51 +516,32 @@ class MediflowStore {
     const actor = this.actor();
     const kunjungan = this.kunjunganById(idPendaftaran);
     if (!actor || !kunjungan) return gagal('Kunjungan tidak ditemukan.');
-    if (actor.role !== 'dokter' || actor.id_user !== kunjungan.idUserDokter) return gagal('Hanya dokter pemeriksa yang menambah resep.');
-    if (kunjungan.pendaftaran.tahap_alur > 5) return gagal('Resep sudah dikirim dan tidak dapat diubah.');
-    const obat = this.db.obat.find((row) => row.id_obat === idObat && row.is_aktif);
-    if (!obat) return gagal('Obat tidak ditemukan.');
-    const qty = Math.max(1, Math.floor(jumlah));
-    let resep = this.db.resep.find((row) => row.id_pendaftaran === idPendaftaran) ?? null;
-    if (!resep) {
-      const sekarang = new Date().toISOString();
-      resep = {
-        id_resep: nextId(this.db.resep, 'id_resep'),
-        nomor_resep: this.nomorResep(),
-        id_pemeriksaan: kunjungan.pemeriksaan.id_pemeriksaan,
-        id_pendaftaran: idPendaftaran,
-        id_dokter: kunjungan.idDokter,
-        id_apoteker: null,
-        kode_qr: randomToken(12),
-        kode_qr_kedaluwarsa: null,
-        qr_dipakai: false,
-        pin_pengambil: null,
-        status_resep: 'Draft',
-        pilihan_tebus: 'belum_memilih',
-        estimasi_selesai: null,
-        waktu_diterbitkan: sekarang,
-        waktu_dikirim: null,
-        waktu_siap: null,
-        waktu_diambil: null,
-        diverifikasi_oleh: null,
-      };
-      this.db.resep.push(resep);
+    if (actor.role !== 'dokter' || actor.id_user !== kunjungan.idUserDokter) {
+      return gagal('Hanya dokter pemeriksa yang menambah resep.');
     }
-    if (resep.waktu_dikirim) return gagal('Resep sudah dikirim.');
-    const ada = this.db.detail_resep.find((row) => row.id_resep === resep!.id_resep && row.id_obat === idObat);
+    if (kunjungan.resepTerkirim || kunjungan.tahap > 5) return gagal('Resep sudah dikirim dan tidak dapat diubah.');
+    const obat = this.db.obat.find((row) => row.id_obat === idObat && row.is_active);
+    if (!obat) return gagal('Obat tidak ditemukan.');
+    if (!aturan.trim()) return gagal('Aturan pakai wajib diisi.');
+    const qty = Math.max(1, Math.floor(jumlah));
+    const resep = this.pastikanResep(kunjungan);
+    const sekarang = sekarangIso();
+    const ada = this.db.detail_resep.find((row) => row.id_resep === resep.id_resep && row.id_obat === idObat);
     if (ada) {
       ada.jumlah += qty;
-      ada.status_ketersediaan = statusKetersediaan(obat.stok, ada.jumlah);
+      ada.dosis_aturan_pakai = aturan.trim();
+      ada.updated_at = sekarang;
     } else {
       this.db.detail_resep.push({
         id_detail: nextId(this.db.detail_resep, 'id_detail'),
         id_resep: resep.id_resep,
         id_obat: idObat,
         jumlah: qty,
-        dosis: obat.bentuk_kekuatan,
-        aturan_pakai: aturan,
-        instruksi_racikan: obat.jenis_obat === 'Racikan' ? 'Racik sesuai aturan apoteker' : null,
-        status_ketersediaan: statusKetersediaan(obat.stok, qty),
+        dosis_aturan_pakai: aturan.trim(),
+        instruksi_racikan: obat.jenis_obat === 'Racikan' ? 'Racik sesuai aturan farmasi' : null,
+        catatan: null,
+        created_at: sekarang,
+        updated_at: sekarang,
       });
     }
     this.emit();
@@ -573,9 +554,10 @@ class MediflowStore {
     const detail = this.db.detail_resep.find((row) => row.id_detail === idDetail);
     if (!detail) return gagal('Item resep tidak ditemukan.');
     const resep = this.db.resep.find((row) => row.id_resep === detail.id_resep);
-    if (!resep || resep.waktu_dikirim) return gagal('Resep sudah dikirim.');
+    if (!resep) return gagal('Resep tidak ditemukan.');
     const kunjungan = this.kunjunganById(resep.id_pendaftaran);
     if (!kunjungan || kunjungan.idUserDokter !== actor.id_user) return gagal('Resep ini bukan milik Anda.');
+    if (kunjungan.resepTerkirim) return gagal('Resep sudah dikirim.');
     this.db.detail_resep = this.db.detail_resep.filter((row) => row.id_detail !== idDetail);
     this.emit();
     return { ok: true, data: null };
@@ -586,27 +568,34 @@ class MediflowStore {
     const kunjungan = this.kunjunganById(idPendaftaran);
     if (!actor || !kunjungan || !kunjungan.resep) return gagal('Resep belum tersedia.');
     if (kunjungan.idUserPasien !== actor.id_user) return gagal('Pilihan tebus diisi oleh pasien.');
-    if (!kunjungan.resep.waktu_dikirim) return gagal('Dokter belum mengirim e-resep.');
-    if (kunjungan.resep.pilihan_tebus !== 'belum_memilih') return gagal('Pilihan tebus sudah dikunci.');
+    if (!kunjungan.resepTerkirim) return gagal('Dokter belum mengirim e-resep.');
+    if (kunjungan.resep.pilihan_penebusan !== 'Belum Memilih') return gagal('Pilihan tebus sudah dikunci.');
     if (pilihan === 'apotek_rs' && !kunjungan.bolehRs) {
       return gagal('Stok rumah sakit tidak mencukupi untuk seluruh item. Pilih apotek luar atau hubungi farmasi.');
     }
     const resep = kunjungan.resep;
-    const lama = resep.status_resep;
-    resep.pilihan_tebus = pilihan;
+    const sekarang = sekarangIso();
+    resep.pilihan_penebusan = pilihan === 'apotek_rs' ? 'Apotek RS' : 'Apotek Luar';
+    resep.updated_at = sekarang;
     if (pilihan === 'apotek_rs') {
       const antrian = this.db.resep.filter(
-        (row) =>
-          row.id_resep !== resep.id_resep &&
-          (row.status_resep === 'Antrean Farmasi' || row.status_resep === 'Sedang Diracik')
+        (row) => row.id_resep !== resep.id_resep && (row.status_resep === 'Antrean Farmasi' || row.status_resep === 'Sedang Diracik')
       ).length;
-      const menit = estimasiFarmasiMenit(
-        antrian,
-        kunjungan.detail.map((row) => row.obat.jenis_obat)
-      );
-      resep.estimasi_selesai = tambahJam(new Date().toISOString(), menit / 60);
+      const menit = estimasiFarmasiMenit(antrian, kunjungan.detail.map((row) => row.obat.jenis_obat));
+      resep.estimasi_jam_selesai = tambahJam(sekarang, menit / 60);
     }
-    this.logStatus(resep, lama, resep.status_resep, actor.id_user, `Pasien memilih ${pilihan}`);
+    this.catat(actor.id_user, 'PILIH_TEBUS', 'resep', resep.id_resep, resep.pilihan_penebusan);
+    if (pilihan === 'apotek_luar') {
+      const pasien = this.db.pasien.find((row) => row.id_pasien === kunjungan.idPasien);
+      if (pasien) {
+        pasien.terdaftar_satusehat = true;
+        pasien.updated_at = sekarang;
+      }
+      this.kirimPesan(kunjungan.idPasien, idPendaftaran, 'Obat Siap', {
+        nomor: kunjungan.pendaftaran.nomor_antrean,
+        selesai: true,
+      });
+    }
     this.emit();
     return { ok: true, data: null };
   }
@@ -615,26 +604,16 @@ class MediflowStore {
     const actor = this.actor();
     const kunjungan = this.kunjunganById(idPendaftaran);
     if (!actor || !kunjungan) return gagal('Kunjungan tidak ditemukan.');
-    const tahap = kunjungan.pendaftaran.tahap_alur;
-    if (tahap >= 10 || kunjungan.pendaftaran.status_antrean === 'Batal') {
-      return gagal('Kunjungan sudah selesai.');
-    }
+    const tahap = kunjungan.tahap;
+    if (tahap >= 10 || tahap <= 0 || kunjungan.selesai) return gagal('Kunjungan sudah selesai.');
     if (!this.bolehMaju(actor.role, tahap, actor.id_user === kunjungan.idUserDokter)) {
-      return gagal('Peran Anda tidak mengacc tahap ini.');
+      return gagal('Peran Anda tidak melanjutkan langkah ini.');
     }
     const cek = this.validasiMaju(kunjungan, tahap);
     if (cek) return gagal(cek);
-
-    if (tahap === 6 && kunjungan.resep?.pilihan_tebus === 'apotek_luar') {
-      this.selesaiLuar(kunjungan, actor.id_user);
-      this.emit();
-      return { ok: true, data: null };
-    }
-
-    const berikut = tahap + 1;
-    kunjungan.pendaftaran.tahap_alur = berikut;
-    this.terapkanTahap(kunjungan, berikut, actor.id_user);
-    this.audit(actor.id_user, 'ACC_TAHAP', 'pendaftaran_poli', idPendaftaran, `Ke tahap ${berikut}`);
+    const error = this.terapkanTahap(kunjungan, tahap + 1, actor.id_user);
+    if (error) return gagal(error);
+    this.catat(actor.id_user, 'LANJUT_LANGKAH', 'pendaftaran_poli', idPendaftaran, `Ke langkah ${tahap + 1}`);
     this.emit();
     return { ok: true, data: null };
   }
@@ -643,48 +622,43 @@ class MediflowStore {
     const actor = this.actor();
     const kunjungan = this.kunjunganById(idPendaftaran);
     if (!actor || !kunjungan || !kunjungan.resep) return gagal('Resep tidak ditemukan.');
-    if (actor.role !== 'apoteker' && actor.role !== 'admin') return gagal('Penyerahan dilakukan apoteker.');
+    if (actor.role !== 'farmasi' && actor.role !== 'admin') return gagal('Penyerahan dilakukan farmasi.');
     const resep = kunjungan.resep;
-    if (resep.kode_qr.trim().toLowerCase() !== kode.trim().toLowerCase()) return gagal('Kode QR tidak cocok.');
-    if (resep.status_resep !== 'Siap Diambil' || kunjungan.pendaftaran.tahap_alur < 9) {
+    if (resep.kode_qr_unik.trim().toLowerCase() !== kode.trim().toLowerCase()) return gagal('Kode QR tidak cocok.');
+    if (resep.status_resep !== 'Siap Diambil' || kunjungan.tahap < 9) {
       return gagal('Obat belum berstatus siap diambil.');
     }
-    if (!qrMasihBerlaku(resep.kode_qr_kedaluwarsa, resep.qr_dipakai)) {
+    if (!qrMasihBerlaku(resep.kadaluarsa_qr, kunjungan.qrDipakai)) {
       return gagal('QR kedaluwarsa atau sudah dipakai. Tolak pengambilan.');
     }
-    if (pengambil === 'keluarga' && pin.trim() !== resep.pin_pengambil) {
-      return gagal('PIN keluarga tidak sesuai.');
+    if (pengambil === 'keluarga') {
+      const otp = this.otpResep(kunjungan);
+      if (!otp || pin.trim() !== otp.kode_otp) {
+        if (otp) otp.attempt += 1;
+        this.emit();
+        return gagal('PIN keluarga tidak sesuai.');
+      }
     }
-    this.selesaiAmbil(kunjungan, actor.id_user, pengambil);
+    const hasil = this.selesaiAmbil(kunjungan, actor.id_user, pengambil);
+    if (!hasil.ok) return hasil;
     this.emit();
     return { ok: true, data: null };
   }
 
   sesuaikanStok(idObat: number, stokBaru: number, keterangan: string): Result<null> {
     const actor = this.actor();
-    if (!actor || (actor.role !== 'apoteker' && actor.role !== 'admin')) {
+    if (!actor || (actor.role !== 'farmasi' && actor.role !== 'admin')) {
       return gagal('Penyesuaian stok dilakukan farmasi.');
     }
     const obat = this.db.obat.find((row) => row.id_obat === idObat);
     if (!obat) return gagal('Obat tidak ditemukan.');
     const tujuan = Math.max(0, Math.floor(stokBaru));
-    const sebelum = obat.stok;
+    const sebelum = obat.stok_rs;
     if (tujuan === sebelum) return gagal('Stok tidak berubah.');
-    obat.stok = tujuan;
-    this.db.log_stok.push({
-      id_log: nextId(this.db.log_stok, 'id_log'),
-      id_obat: obat.id_obat,
-      jenis: 'penyesuaian',
-      jumlah: Math.abs(tujuan - sebelum),
-      stok_sebelum: sebelum,
-      stok_sesudah: tujuan,
-      keterangan: keterangan.trim() || 'Penyesuaian stok fisik',
-      id_user: actor.id_user,
-      id_detail: null,
-      waktu: new Date().toISOString(),
-    });
-    this.segarkanKetersediaan();
-    this.audit(actor.id_user, 'SESUAIKAN_STOK', 'obat', obat.id_obat, `${sebelum} -> ${tujuan}`);
+    obat.stok_rs = tujuan;
+    obat.updated_at = sekarangIso();
+    this.catatMutasi(obat.id_obat, actor.id_user, 'Penyesuaian', Math.abs(tujuan - sebelum), sebelum, tujuan, keterangan.trim() || 'Penyesuaian stok fisik');
+    this.catat(actor.id_user, 'SESUAIKAN_STOK', 'obat', obat.id_obat, `${sebelum} -> ${tujuan}`);
     this.emit();
     return { ok: true, data: null };
   }
@@ -692,243 +666,231 @@ class MediflowStore {
   private bolehMaju(role: Role, tahap: number, dokterPemilik: boolean): boolean {
     if (role === 'admin') return true;
     if (role === 'dokter' && dokterPemilik && (tahap === 4 || tahap === 5)) return true;
-    if (role === 'apoteker' && tahap >= 7 && tahap <= 9) return true;
+    if (role === 'farmasi' && (tahap === 7 || tahap === 8)) return true;
     return false;
   }
 
   private validasiMaju(kunjungan: Kunjungan, tahap: number): string | null {
+    if (tahap === 1 && !kunjungan.pendaftaran.waktu_check_in) return 'Pasien belum check-in.';
     if (tahap === 1 && !kunjungan.pemeriksaan.keluhan.trim()) return 'Keluhan pasien belum diisi.';
-    if (tahap === 2 && !kunjungan.pemeriksaan.tensi.trim()) return 'Tanda vital belum diisi.';
-    if (tahap === 4 && !kunjungan.pemeriksaan.kode_icd10.trim()) return 'Diagnosa ICD-10 belum disimpan.';
-    if (tahap === 5 && kunjungan.detail.length === 0) return 'E-resep masih kosong.';
-    if (tahap === 6 && (!kunjungan.resep || kunjungan.resep.pilihan_tebus === 'belum_memilih')) {
+    if (tahap === 2 && !kunjungan.pemeriksaan.tekanan_darah?.trim()) return 'Tanda vital belum diisi.';
+    if (tahap === 4 && !kunjungan.pemeriksaan.diagnosis.trim()) return 'Diagnosis belum disimpan.';
+    if (tahap === 5 && kunjungan.detail.length === 0) return 'Tambahkan minimal satu obat sebelum mengirim resep.';
+    if (tahap === 6 && (!kunjungan.resep || kunjungan.resep.pilihan_penebusan === 'Belum Memilih')) {
       return 'Pasien belum memilih tempat tebus.';
+    }
+    if (tahap === 6 && kunjungan.resep?.pilihan_penebusan === 'Apotek Luar') {
+      return 'Resep dibawa ke apotek luar. Tidak masuk antrean farmasi.';
     }
     return null;
   }
 
-  private terapkanTahap(kunjungan: Kunjungan, tahap: number, actorId: number): void {
+  private terapkanTahap(kunjungan: Kunjungan, tahap: number, actorId: number): string | null {
     const pendaftaran = kunjungan.pendaftaran;
-    const sekarang = new Date().toISOString();
-    if (tahap === 3) {
-      pendaftaran.status_antrean = 'Menunggu';
-    }
+    const sekarang = sekarangIso();
     if (tahap === 4) {
       pendaftaran.status_antrean = 'Masuk Ruangan';
+      pendaftaran.updated_at = sekarang;
       if (!kunjungan.pemeriksaan.waktu_mulai) kunjungan.pemeriksaan.waktu_mulai = sekarang;
-      this.kirimPesan(
-        kunjungan.idUserPasien,
-        'info_giliran',
-        { kode: pendaftaran.kode_booking, mode: 'panggil' },
-        `pendaftaran:${pendaftaran.id_pendaftaran}`
-      );
+      kunjungan.pemeriksaan.updated_at = sekarang;
+      this.kirimPesan(kunjungan.idPasien, pendaftaran.id_pendaftaran, 'Pengingat Kunjungan', {
+        nomor: pendaftaran.nomor_antrean,
+        mode: 'panggil',
+      });
     }
     if (tahap === 5) {
-      kunjungan.pemeriksaan.waktu_selesai = sekarang;
+      pendaftaran.status_antrean = 'Selesai Pemeriksaan';
+      pendaftaran.updated_at = sekarang;
     }
     if (tahap === 6) {
-      this.pastikanResep(kunjungan);
-      const resep = this.db.resep.find((row) => row.id_pendaftaran === pendaftaran.id_pendaftaran)!;
-      this.ubahStatusResep(resep, 'Verifikasi Kasir', actorId, 'E-resep dikirim');
-      resep.waktu_dikirim = sekarang;
-      this.segarkanKetersediaan();
-      this.kirimPesan(
-        kunjungan.idUserPasien,
-        'info_ketersediaan',
-        { kode: pendaftaran.kode_booking },
-        `resep:${resep.id_resep}`
-      );
+      const resep = this.pastikanResep(kunjungan);
+      kunjungan.pemeriksaan.waktu_selesai = sekarang;
+      kunjungan.pemeriksaan.updated_at = sekarang;
+      this.ubahStatusResep(resep, 'Menunggu Pilihan', actorId, 'E-resep dikirim ke pasien');
+      this.kirimPesan(kunjungan.idPasien, pendaftaran.id_pendaftaran, 'QR Resep', {
+        nomor: pendaftaran.nomor_antrean,
+      });
     }
-    if (tahap === 7) {
-      const resep = kunjungan.resep!;
-      this.pasangApoteker(actorId, resep);
-      this.ubahStatusResep(resep, 'Sedang Diracik', actorId, 'Masuk peracikan');
+    if (tahap === 7 && kunjungan.resep) {
+      this.ubahStatusResep(kunjungan.resep, 'Antrean Farmasi', actorId, 'Masuk antrean farmasi');
     }
-    if (tahap === 8) {
-      const resep = kunjungan.resep!;
-      resep.diverifikasi_oleh = actorId;
-      this.pasangApoteker(actorId, resep);
-      this.ubahStatusResep(resep, 'Pengecekan', actorId, 'Quality control');
+    if (tahap === 8 && kunjungan.resep) {
+      this.ubahStatusResep(kunjungan.resep, 'Sedang Diracik', actorId, 'Obat disiapkan');
     }
-    if (tahap === 9) {
-      const resep = kunjungan.resep!;
-      this.pasangApoteker(actorId, resep);
-      resep.waktu_siap = sekarang;
-      resep.kode_qr_kedaluwarsa = tambahJam(sekarang, 24);
-      resep.pin_pengambil = randomPin();
-      resep.qr_dipakai = false;
-      this.snapshotKetersediaan(resep.id_resep);
-      this.ubahStatusResep(resep, 'Siap Diambil', actorId, 'Siap di loket');
-      this.kirimPesan(
-        kunjungan.idUserPasien,
-        'qr_resep',
-        { kode: pendaftaran.kode_booking, loket: pendaftaran.loket },
-        `resep:${resep.id_resep}`
-      );
+    if (tahap === 9 && kunjungan.resep) {
+      const resep = kunjungan.resep;
+      resep.kadaluarsa_qr = tambahJam(sekarang, 24);
+      resep.updated_at = sekarang;
+      this.buatPin(kunjungan, resep.kadaluarsa_qr);
+      this.ubahStatusResep(resep, 'Siap Diambil', actorId, 'Siap di farmasi');
+      this.kirimPesan(kunjungan.idPasien, pendaftaran.id_pendaftaran, 'Obat Siap', {
+        nomor: pendaftaran.nomor_antrean,
+      });
     }
     if (tahap === 10 && kunjungan.resep) {
-      this.selesaiAmbil(kunjungan, actorId, 'pasien');
+      const hasil = this.selesaiAmbil(kunjungan, actorId, 'pasien');
+      if (!hasil.ok) return hasil.error;
     }
+    return null;
   }
 
-  private selesaiLuar(kunjungan: Kunjungan, actorId: number): void {
-    const resep = kunjungan.resep!;
-    kunjungan.pendaftaran.tahap_alur = 10;
-    kunjungan.pendaftaran.status_antrean = 'Selesai';
-    this.ubahStatusResep(resep, 'Tebus Luar', actorId, 'Resep dibawa ke apotek luar');
-    const pasien = this.db.pasien.find((row) => row.id_pasien === kunjungan.pendaftaran.id_pasien);
-    if (pasien) pasien.terdaftar_satusehat = true;
-    this.kirimPesan(
-      kunjungan.idUserPasien,
-      'selesai',
-      { kode: kunjungan.pendaftaran.kode_booking },
-      `resep:${resep.id_resep}`
-    );
-    this.audit(actorId, 'TEBUS_LUAR', 'resep', resep.id_resep, 'Tanpa pengurangan stok RS');
-  }
-
-  private selesaiAmbil(kunjungan: Kunjungan, actorId: number, pengambil: 'pasien' | 'keluarga'): void {
-    const resep = kunjungan.resep!;
-    if (resep.status_resep === 'Selesai Diambil') return;
-    kunjungan.pendaftaran.tahap_alur = 10;
-    kunjungan.pendaftaran.status_antrean = 'Selesai';
-    resep.qr_dipakai = true;
-    resep.waktu_diambil = new Date().toISOString();
-    this.pasangApoteker(actorId, resep);
+  private selesaiAmbil(kunjungan: Kunjungan, actorId: number, pengambil: 'pasien' | 'keluarga'): Result<null> {
+    const resep = kunjungan.resep;
+    if (!resep) return gagal('Resep tidak ditemukan.');
+    if (resep.status_resep === 'Selesai Diambil') return { ok: true, data: null };
+    const kurang = this.db.detail_resep
+      .filter((row) => row.id_resep === resep.id_resep)
+      .some((detail) => {
+        const obat = this.db.obat.find((row) => row.id_obat === detail.id_obat);
+        return !obat || obat.stok_rs < detail.jumlah;
+      });
+    if (kurang) return gagal('Stok rumah sakit tidak cukup untuk menyerahkan resep ini.');
+    const sekarang = sekarangIso();
+    const pasien = this.db.pasien.find((row) => row.id_pasien === kunjungan.idPasien);
     this.keluarkanStok(resep, actorId);
+    resep.updated_at = sekarang;
     this.ubahStatusResep(resep, 'Selesai Diambil', actorId, `Diserahkan ke ${pengambil}`);
-    const pasien = this.db.pasien.find((row) => row.id_pasien === kunjungan.pendaftaran.id_pasien);
-    if (pasien) pasien.terdaftar_satusehat = true;
-    this.kirimPesan(
-      kunjungan.idUserPasien,
-      'selesai',
-      { kode: kunjungan.pendaftaran.kode_booking },
-      `resep:${resep.id_resep}`
-    );
-    this.audit(actorId, 'SERAH_OBAT', 'resep', resep.id_resep, pengambil);
+    const otp = this.otpResep(kunjungan);
+    if (otp && !otp.verified_at) otp.verified_at = sekarang;
+    this.db.pengambilan_obat.push({
+      id_pengambilan: nextId(this.db.pengambilan_obat, 'id_pengambilan'),
+      id_resep: resep.id_resep,
+      id_user_petugas: actorId,
+      diambil_oleh: pengambil === 'keluarga' ? 'Keluarga' : 'Pasien',
+      nama_pengambil: pengambil === 'keluarga' ? 'Keluarga' : pasien?.nama_lengkap ?? null,
+      waktu_pengambilan: sekarang,
+      metode_verifikasi: pengambil === 'keluarga' ? 'QR + PIN' : 'QR',
+      status: 'Berhasil',
+      catatan: null,
+      created_at: sekarang,
+      updated_at: sekarang,
+    });
+    if (pasien) {
+      pasien.terdaftar_satusehat = true;
+      pasien.updated_at = sekarang;
+    }
+    this.kirimPesan(kunjungan.idPasien, kunjungan.pendaftaran.id_pendaftaran, 'Obat Siap', {
+      nomor: kunjungan.pendaftaran.nomor_antrean,
+      selesai: true,
+    });
+    this.catat(actorId, 'SERAH_OBAT', 'pengambilan_obat', resep.id_resep, pengambil);
+    return { ok: true, data: null };
   }
 
-  private pastikanResep(kunjungan: Kunjungan): void {
-    if (this.db.resep.some((row) => row.id_pendaftaran === kunjungan.pendaftaran.id_pendaftaran)) return;
-    this.db.resep.push({
+  private pastikanResep(kunjungan: Kunjungan): Resep {
+    const ada = this.db.resep.find((row) => row.id_pendaftaran === kunjungan.pendaftaran.id_pendaftaran);
+    if (ada) return ada;
+    const sekarang = sekarangIso();
+    const resep: Resep = {
       id_resep: nextId(this.db.resep, 'id_resep'),
-      nomor_resep: this.nomorResep(),
-      id_pemeriksaan: kunjungan.pemeriksaan.id_pemeriksaan,
       id_pendaftaran: kunjungan.pendaftaran.id_pendaftaran,
-      id_dokter: kunjungan.idDokter,
-      id_apoteker: null,
-      kode_qr: randomToken(12),
-      kode_qr_kedaluwarsa: null,
-      qr_dipakai: false,
-      pin_pengambil: null,
-      status_resep: 'Draft',
-      pilihan_tebus: 'belum_memilih',
-      estimasi_selesai: null,
-      waktu_diterbitkan: new Date().toISOString(),
-      waktu_dikirim: null,
-      waktu_siap: null,
-      waktu_diambil: null,
-      diverifikasi_oleh: null,
-    });
+      kode_qr_unik: randomToken(12),
+      waktu_diterbitkan: sekarang,
+      pilihan_penebusan: 'Belum Memilih',
+      estimasi_jam_selesai: null,
+      status_resep: 'Menunggu Pilihan',
+      kadaluarsa_qr: null,
+      created_at: sekarang,
+      updated_at: sekarang,
+    };
+    this.db.resep.push(resep);
+    return resep;
   }
 
   private ubahStatusResep(resep: Resep, baru: StatusResep, actorId: number, catatan: string): void {
     const lama = resep.status_resep;
     if (lama === baru) return;
     resep.status_resep = baru;
-    this.logStatus(resep, lama, baru, actorId, catatan);
+    resep.updated_at = sekarangIso();
+    this.catat(actorId, 'UBAH_STATUS_RESEP', 'resep', resep.id_resep, `${lama} -> ${baru}. ${catatan}`);
   }
 
-  private logStatus(resep: Resep, lama: string, baru: StatusResep, actorId: number, catatan: string): void {
-    if (lama === baru && !catatan) return;
-    this.db.log_status_resep.push({
-      id_log: nextId(this.db.log_status_resep, 'id_log'),
-      id_resep: resep.id_resep,
-      status_lama: lama,
-      status_baru: baru,
-      id_user: actorId,
-      waktu: new Date().toISOString(),
-      catatan,
+  private buatPin(kunjungan: Kunjungan, kedaluwarsa: string): void {
+    const pasien = this.db.pasien.find((row) => row.id_pasien === kunjungan.idPasien);
+    if (!pasien) return;
+    const sudah = this.db.otp_verifikasi.some(
+      (row) => row.id_user === pasien.id_user && row.expired_at === kedaluwarsa
+    );
+    if (sudah) return;
+    this.db.otp_verifikasi.push({
+      id_otp: nextId(this.db.otp_verifikasi, 'id_otp'),
+      id_user: pasien.id_user,
+      kode_otp: randomPin(),
+      tujuan: pasien.no_telepon,
+      expired_at: kedaluwarsa,
+      verified_at: null,
+      attempt: 0,
+      created_at: sekarangIso(),
     });
   }
 
-  private pasangApoteker(actorId: number, resep: Resep): void {
-    const apoteker = this.db.apoteker.find((row) => row.id_user === actorId);
-    if (apoteker) resep.id_apoteker = apoteker.id_apoteker;
+  private otpResep(kunjungan: Kunjungan) {
+    const kedaluwarsa = kunjungan.resep?.kadaluarsa_qr;
+    if (!kedaluwarsa) return undefined;
+    return this.db.otp_verifikasi.find(
+      (row) => row.id_user === kunjungan.idUserPasien && row.expired_at === kedaluwarsa
+    );
   }
 
   private keluarkanStok(resep: Resep, actorId: number): void {
-    const details = this.db.detail_resep.filter((row) => row.id_resep === resep.id_resep);
-    details.forEach((detail) => {
-      const obat = this.db.obat.find((row) => row.id_obat === detail.id_obat);
-      if (!obat) return;
-      const keluar = Math.min(obat.stok, detail.jumlah);
-      if (keluar <= 0) return;
-      const sebelum = obat.stok;
-      obat.stok = sebelum - keluar;
-      this.db.log_stok.push({
-        id_log: nextId(this.db.log_stok, 'id_log'),
-        id_obat: obat.id_obat,
-        jenis: 'keluar',
-        jumlah: keluar,
-        stok_sebelum: sebelum,
-        stok_sesudah: obat.stok,
-        keterangan: `Penyerahan ${resep.nomor_resep}`,
-        id_user: actorId,
-        id_detail: detail.id_detail,
-        waktu: new Date().toISOString(),
-      });
-    });
-  }
-
-  private segarkanKetersediaan(): void {
-    this.db.detail_resep.forEach((detail) => {
-      const resep = this.db.resep.find((row) => row.id_resep === detail.id_resep);
-      if (!resep || resep.status_resep === 'Siap Diambil' || resep.status_resep === 'Selesai Diambil') return;
-      const obat = this.db.obat.find((row) => row.id_obat === detail.id_obat);
-      if (!obat) return;
-      detail.status_ketersediaan = statusKetersediaan(obat.stok, detail.jumlah);
-    });
-  }
-
-  private snapshotKetersediaan(idResep: number): void {
     this.db.detail_resep
-      .filter((row) => row.id_resep === idResep)
+      .filter((row) => row.id_resep === resep.id_resep)
       .forEach((detail) => {
         const obat = this.db.obat.find((row) => row.id_obat === detail.id_obat);
-        if (obat) detail.status_ketersediaan = statusKetersediaan(obat.stok, detail.jumlah);
+        if (!obat) return;
+        const sebelum = obat.stok_rs;
+        obat.stok_rs = sebelum - detail.jumlah;
+        obat.updated_at = sekarangIso();
+        this.catatMutasi(obat.id_obat, actorId, 'Keluar', detail.jumlah, sebelum, obat.stok_rs, `Penyerahan resep ${resep.id_resep}`);
       });
+  }
+
+  private catatMutasi(
+    idObat: number,
+    idUser: number,
+    jenis: MutasiStok['jenis_mutasi'],
+    jumlah: number,
+    sebelum: number,
+    sesudah: number,
+    keterangan: string
+  ): void {
+    this.db.mutasi_stok.push({
+      id_mutasi: nextId(this.db.mutasi_stok, 'id_mutasi'),
+      id_obat: idObat,
+      id_user: idUser,
+      jenis_mutasi: jenis,
+      jumlah,
+      stok_sebelum: sebelum,
+      stok_sesudah: sesudah,
+      keterangan,
+      created_at: sekarangIso(),
+    });
   }
 
   private kirimPesan(
-    idUser: number,
+    idPasien: number,
+    idPendaftaran: number | null,
     jenis: JenisNotifikasi,
-    ctx: Parameters<typeof teksNotifikasi>[1],
-    referensi: string
+    ctx: Parameters<typeof teksNotifikasi>[1]
   ): void {
-    const isi = teksNotifikasi(jenis, ctx);
+    const pasien = this.db.pasien.find((row) => row.id_pasien === idPasien);
+    if (!pasien) return;
+    const pesan = teksNotifikasi(jenis, ctx);
+    const sekarang = sekarangIso();
     this.db.notifikasi.push({
       id_notifikasi: nextId(this.db.notifikasi, 'id_notifikasi'),
-      id_user: idUser,
-      jenis_kejadian: jenis,
-      kanal: 'whatsapp',
-      isi_pesan: isi,
-      status_kirim: 'terkirim',
-      jumlah_percobaan: 1,
-      waktu_kirim: new Date().toISOString(),
-      referensi_id: referensi,
+      id_pasien: idPasien,
+      id_pendaftaran: idPendaftaran,
+      jenis_notifikasi: jenis,
+      channel: 'PWA',
+      nomor_tujuan: pasien.no_telepon,
+      pesan,
+      status: 'Terkirim',
+      waktu_dikirim: sekarang,
+      response_api: null,
+      created_at: sekarang,
     });
-    const judul: Record<JenisNotifikasi, string> = {
-      verifikasi_wa: 'Verifikasi WhatsApp',
-      konfirmasi_booking: 'Booking berhasil',
-      pengingat_hari_h: 'Pengingat kunjungan',
-      info_giliran: 'Giliran antrean',
-      info_ketersediaan: 'E-resep terbit',
-      qr_resep: 'Obat siap diambil',
-      obat_siap: 'Obat siap diambil',
-      selesai: 'Kunjungan selesai',
-    };
-    void notifyBrowser(judul[jenis], isi);
+    if (this.actor()?.id_user === pasien.id_user) void notifyBrowser(judulNotifikasi(jenis, pesan), pesan);
   }
 
   private susun(pendaftaran: PendaftaranPoli): Kunjungan | null {
@@ -937,25 +899,37 @@ class MediflowStore {
     const jadwal = this.db.jadwal_dokter.find((row) => row.id_jadwal === pendaftaran.id_jadwal);
     if (!pasien || !pemeriksaan || !jadwal) return null;
     const dokter = this.db.dokter.find((row) => row.id_dokter === pemeriksaan.id_dokter);
-    const userDokter = dokter ? this.db.users.find((row) => row.id_user === dokter.id_user) : undefined;
-    const poli = this.db.poli.find((row) => row.id_poli === jadwal.id_poli);
-    if (!dokter || !userDokter || !poli) return null;
+    const poli = dokter ? this.db.poliklinik.find((row) => row.id_poli === dokter.id_poli) : undefined;
+    if (!dokter || !poli) return null;
     const resep = this.db.resep.find((row) => row.id_pendaftaran === pendaftaran.id_pendaftaran) ?? null;
-    const kunciSnapshot = resep?.status_resep === 'Siap Diambil' || resep?.status_resep === 'Selesai Diambil';
     const detail = (resep ? this.db.detail_resep.filter((row) => row.id_resep === resep.id_resep) : []).map((row) => {
       const obat = this.db.obat.find((item) => item.id_obat === row.id_obat)!;
-      const ketersediaan = kunciSnapshot ? row.status_ketersediaan : statusKetersediaan(obat.stok, row.jumlah);
-      return { ...row, obat, ketersediaan };
+      return { ...row, obat, ketersediaan: statusKetersediaan(obat.stok_rs, row.jumlah) };
     });
+    const resepTerkirim = Boolean(resep && pemeriksaan.waktu_selesai);
+    const qrDipakai = Boolean(
+      resep && this.db.pengambilan_obat.some((row) => row.id_resep === resep.id_resep && row.status === 'Berhasil')
+    );
+    const tahap = hitungTahap({
+      statusAntrean: pendaftaran.status_antrean,
+      checkIn: Boolean(pendaftaran.waktu_check_in),
+      adaVital: Boolean(pemeriksaan.tekanan_darah?.trim()),
+      resep: resep
+        ? { status: resep.status_resep, pilihan: resep.pilihan_penebusan, terkirim: resepTerkirim }
+        : null,
+    });
+    const otp = resep?.kadaluarsa_qr
+      ? this.db.otp_verifikasi.find((row) => row.id_user === pasien.id_user && row.expired_at === resep.kadaluarsa_qr)
+      : undefined;
     return {
       pendaftaran,
-      pasienNama: pasien.nama,
-      noRekamMedis: pasien.no_rekam_medis,
+      pasienNama: pasien.nama_lengkap,
+      nomorBpjs: pasien.nomor_bpjs,
       idUserPasien: pasien.id_user,
+      idPasien: pasien.id_pasien,
       poliNama: poli.nama_poli,
-      poliKode: poli.kode,
-      dokterNama: userDokter.nama_lengkap,
-      spesialisasi: dokter.spesialisasi,
+      dokterNama: dokter.nama_dokter,
+      spesialisasi: dokter.spesialisasi ?? '',
       idDokter: dokter.id_dokter,
       idUserDokter: dokter.id_user,
       jadwal,
@@ -963,32 +937,30 @@ class MediflowStore {
       resep,
       detail,
       bolehRs: bolehTebusRs(detail.map((row) => row.ketersediaan)),
+      tahap,
+      resepTerkirim,
+      qrDipakai,
+      pinKeluarga: otp?.kode_otp ?? null,
+      selesai: tahap >= 10,
     };
   }
 
-  private kodeBooking(kodePoli: string): string {
-    const nomor = this.db.pendaftaran_poli.reduce((max, row) => {
-      const cocok = row.kode_booking.match(/-(\d+)$/);
-      return Math.max(max, cocok ? Number(cocok[1]) : 0);
-    }, 0);
-    return `${kodePoli}-${String(nomor + 1).padStart(3, '0')}`;
-  }
-
-  private nomorResep(): string {
-    const tanggal = tanggalIso().replace(/-/g, '');
-    const urut = this.db.resep.filter((row) => row.nomor_resep.includes(tanggal)).length + 1;
-    return `RSP-${tanggal}-${String(urut).padStart(4, '0')}`;
-  }
-
-  private audit(idUser: number, aksi: string, entitas: string, idEntitas: number, keterangan: string): void {
-    this.db.audit_log.push({
-      id_audit: nextId(this.db.audit_log, 'id_audit'),
+  private catat(
+    idUser: number,
+    aktivitas: string,
+    tabel: string,
+    idReferensi: number,
+    keterangan: string
+  ): void {
+    this.db.log_aktivitas.push({
+      id_log: nextId(this.db.log_aktivitas, 'id_log'),
       id_user: idUser,
-      aksi,
-      entitas,
-      id_entitas: idEntitas,
-      waktu: new Date().toISOString(),
+      aktivitas,
+      tabel_referensi: tabel,
+      id_referensi: idReferensi,
       keterangan,
+      ip_address: null,
+      created_at: sekarangIso(),
     });
   }
 }

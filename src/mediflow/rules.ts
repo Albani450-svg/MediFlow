@@ -1,20 +1,21 @@
 import type {
   Hari,
-  Ketersediaan,
   JenisNotifikasi,
   JenisObat,
+  Ketersediaan,
   PendaftaranPoli,
-  PilihanTebus,
+  PilihanPenebusan,
+  StatusAntrean,
+  StatusResep,
 } from './types';
 
 export interface KonteksPesan {
-  kode?: string;
   poli?: string;
   tanggal?: string;
   jam?: string;
   nomor?: number;
-  loket?: string;
   mode?: 'checkin' | 'panggil';
+  selesai?: boolean;
 }
 
 const HARI: Hari[] = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -28,6 +29,10 @@ export function tanggalIso(date = new Date()): string {
 
 export function namaHari(date = new Date()): Hari {
   return HARI[date.getDay()];
+}
+
+export function jamPendek(jam: string): string {
+  return jam.slice(0, 5);
 }
 
 /** Jam masuk = jam mulai praktik + (nomor antrean - 1) × rata-rata menit periksa. */
@@ -76,52 +81,88 @@ export function bentrokPasien(
   );
 }
 
+/** Indeks unique_antrean_harian mencakup baris Batal. Nomor tidak dipakai ulang. */
 export function bentrokNomorAntrean(
-  rows: Pick<PendaftaranPoli, 'id_jadwal' | 'tanggal_kunjungan' | 'nomor_antrean' | 'status_antrean'>[],
+  rows: Pick<PendaftaranPoli, 'id_jadwal' | 'tanggal_kunjungan' | 'nomor_antrean'>[],
   idJadwal: number,
   tanggal: string,
   nomor: number
 ): boolean {
   return rows.some(
-    (row) =>
-      row.id_jadwal === idJadwal &&
-      row.tanggal_kunjungan === tanggal &&
-      row.nomor_antrean === nomor &&
-      row.status_antrean !== 'Batal'
+    (row) => row.id_jadwal === idJadwal && row.tanggal_kunjungan === tanggal && row.nomor_antrean === nomor
   );
 }
 
-export function qrMasihBerlaku(
-  kedaluwarsa: string | null,
-  dipakai: boolean,
-  sekarang = Date.now()
-): boolean {
+export function qrMasihBerlaku(kedaluwarsa: string | null, dipakai: boolean, sekarang = Date.now()): boolean {
   if (dipakai || !kedaluwarsa) return false;
   return new Date(kedaluwarsa).getTime() > sekarang;
 }
 
-/** Pesan WhatsApp sengaja tanpa nama obat dan tanpa diagnosis. */
-export function teksNotifikasi(jenis: JenisNotifikasi, ctx: KonteksPesan): string {
+export interface KonteksTahap {
+  statusAntrean: StatusAntrean;
+  checkIn: boolean;
+  adaVital: boolean;
+  resep: { status: StatusResep; pilihan: PilihanPenebusan; terkirim: boolean } | null;
+}
+
+/** Posisi 1–10 diturunkan dari kolom skema, tidak disimpan sendiri. */
+export function hitungTahap(ctx: KonteksTahap): number {
+  if (ctx.statusAntrean === 'Batal') return 0;
+  const resep = ctx.resep;
+  if (resep?.pilihan === 'Apotek Luar') return 10;
+  if (resep?.status === 'Selesai Diambil') return 10;
+  if (resep?.status === 'Siap Diambil') return 9;
+  if (resep?.status === 'Sedang Diracik') return 8;
+  if (resep?.status === 'Antrean Farmasi') return 7;
+  if (resep?.terkirim && resep.status === 'Menunggu Pilihan') return 6;
+  if (ctx.statusAntrean === 'Selesai Pemeriksaan') return 5;
+  if (ctx.statusAntrean === 'Masuk Ruangan') return 4;
+  if (ctx.statusAntrean === 'Dipanggil' || ctx.adaVital) return 3;
+  if (ctx.checkIn) return 2;
+  return 1;
+}
+
+/** Notifikasi di dalam PWA. Sengaja tanpa nama obat dan tanpa diagnosis. */
+export function judulNotifikasi(jenis: JenisNotifikasi, pesan = ''): string {
+  if (jenis === 'Obat Siap' && pesan.startsWith('Kunjungan selesai')) return 'Kunjungan selesai';
   switch (jenis) {
-    case 'verifikasi_wa':
-      return 'Nomor WhatsApp Anda sudah terverifikasi untuk MediFlow.';
-    case 'konfirmasi_booking':
-      return `Booking ${ctx.kode} berhasil di ${ctx.poli}. Estimasi masuk ${ctx.jam} pada ${ctx.tanggal}. Nomor antrean ${ctx.nomor}.`;
-    case 'pengingat_hari_h':
-      return `Pengingat kunjungan hari ini. Kode booking ${ctx.kode}. Silakan datang dan lakukan check-in.`;
-    case 'info_giliran':
+    case 'Verifikasi WA':
+      return 'Verifikasi nomor';
+    case 'Konfirmasi Pendaftaran':
+      return 'Pendaftaran berhasil';
+    case 'Pengingat Kunjungan':
+      return 'Pengingat kunjungan';
+    case 'QR Resep':
+      return 'E-resep terbit';
+    case 'Obat Siap':
+      return 'Obat siap diambil';
+    default:
+      return 'MediFlow';
+  }
+}
+
+export function teksNotifikasi(jenis: JenisNotifikasi, ctx: KonteksPesan): string {
+  const nomor = ctx.nomor ?? '-';
+  switch (jenis) {
+    case 'Verifikasi WA':
+      return 'Notifikasi MediFlow aktif. Pembaruan kunjungan akan muncul di aplikasi ini.';
+    case 'Konfirmasi Pendaftaran':
+      return `Pendaftaran antrean ${nomor} berhasil di ${ctx.poli}. Estimasi masuk ${ctx.jam} pada ${ctx.tanggal}.`;
+    case 'Pengingat Kunjungan':
       if (ctx.mode === 'checkin') {
-        return `Check-in berhasil untuk kode ${ctx.kode}. Estimasi masuk ruang ${ctx.jam}.`;
+        return `Check-in berhasil untuk antrean ${nomor}. Estimasi masuk ruang ${ctx.jam}.`;
       }
-      return `Anda dipanggil ke ruang periksa. Kode booking ${ctx.kode}.`;
-    case 'info_ketersediaan':
-      return 'E-resep sudah terbit. Buka MediFlow untuk melihat ketersediaan dan memilih tempat tebus. Pesan ini tidak memuat nama obat.';
-    case 'qr_resep':
-      return `Obat siap diambil di ${ctx.loket}. Buka MediFlow dan tunjukkan kode QR. Berlaku 24 jam dan hanya sekali pakai.`;
-    case 'obat_siap':
-      return `Obat dengan kode ${ctx.kode} siap diambil di ${ctx.loket}.`;
-    case 'selesai':
-      return 'Pengambilan selesai. Riwayat pengobatan dikirim ke rekam medis rumah sakit.';
+      if (ctx.mode === 'panggil') {
+        return `Anda dipanggil masuk ruang periksa. Nomor antrean ${nomor}.`;
+      }
+      return `Pengingat kunjungan hari ini di ${ctx.poli ?? 'poliklinik'}. Nomor antrean ${nomor}. Silakan datang dan lakukan check-in.`;
+    case 'QR Resep':
+      return 'E-resep sudah terbit. Buka tab E-Resep untuk melihat ketersediaan dan memilih tempat tebus. Notifikasi ini tidak memuat nama obat.';
+    case 'Obat Siap':
+      if (ctx.selesai) {
+        return 'Kunjungan selesai. Riwayat pengobatan ditandai terkirim ke rekam medis rumah sakit.';
+      }
+      return `Obat untuk antrean ${nomor} siap diambil di farmasi rumah sakit. Buka tab E-Resep dan tunjukkan kode. Berlaku 24 jam dan hanya sekali pakai.`;
     default:
       return 'Ada pembaruan pada kunjungan MediFlow Anda.';
   }
@@ -129,10 +170,4 @@ export function teksNotifikasi(jenis: JenisNotifikasi, ctx: KonteksPesan): strin
 
 export function tambahJam(iso: string, jam: number): string {
   return new Date(new Date(iso).getTime() + jam * 60 * 60 * 1000).toISOString();
-}
-
-export function pilihanLabel(pilihan: PilihanTebus): string {
-  if (pilihan === 'apotek_rs') return 'Apotek RS';
-  if (pilihan === 'apotek_luar') return 'Apotek Luar';
-  return 'Belum Memilih';
 }

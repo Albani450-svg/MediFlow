@@ -72,8 +72,17 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = event.notification.data?.url || '/app';
-  event.waitUntil(clients.openWindow(target));
+  const target = new URL(event.notification.data?.url || '/app', self.location.origin).href;
+  event.waitUntil((async () => {
+    const terbuka = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of terbuka) {
+      if (!('focus' in client)) continue;
+      await client.focus();
+      client.postMessage({ type: 'mediflow-open', url: target });
+      return;
+    }
+    await self.clients.openWindow(target);
+  })());
 });
 
 workbox.precaching.precacheAndRoute(self.__WB_MANIFEST || []);

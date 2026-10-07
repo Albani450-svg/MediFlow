@@ -20,36 +20,36 @@ const AKUN: AkunDemo[] = [
     role: 'pasien',
     username: 'budi',
     password: 'pasien123',
-    nama: 'Budi Santoso (RM-0049281)',
-    judul: 'Pasien (User)',
-    deskripsi: 'Daftar poli, pantau 10 tahap, pilih tebus obat, dan tunjukkan QR',
+    nama: 'Budi Santoso Edit • budi',
+    judul: 'Pasien',
+    deskripsi: 'Daftar poli, lihat giliran, pilih apotek, dan tunjukkan kode pengambilan',
     ikon: '👤',
   },
   {
     role: 'dokter',
-    username: 'hendra',
+    username: 'dokter01',
     password: 'dokter123',
-    nama: 'dr. Hendra Wijaya, Sp.PD',
-    judul: 'Dokter Pemeriksa',
-    deskripsi: 'Isi anamnesa, kode ICD-10, tindakan, jadwal kontrol, dan e-resep',
+    nama: 'Dr. Ahmad • dokter01',
+    judul: 'Dokter',
+    deskripsi: 'Periksa pasien, tulis diagnosis, dan kirim resep ke farmasi',
     ikon: '🩺',
   },
   {
     role: 'admin',
-    username: 'siti',
+    username: 'admin',
     password: 'admin123',
-    nama: 'Siti Rahma, A.Md.Kep / Admin',
+    nama: 'Administrator • admin',
     judul: 'Admin & Perawat',
-    deskripsi: 'Input tanda vital, verifikasi BPJS, dan ACC tahapan loket',
+    deskripsi: 'Catat tanda vital, panggil pasien, dan selesaikan pembayaran',
     ikon: '🛡️',
   },
   {
-    role: 'apoteker',
-    username: 'rina',
+    role: 'farmasi',
+    username: 'farmasi01',
     password: 'apotek123',
-    nama: 'apt. Rina Kusuma (SIPA)',
-    judul: 'Apoteker',
-    deskripsi: 'Racik obat, cek stok, pindai QR, dan serahkan ke pasien atau keluarga',
+    nama: 'Petugas Farmasi • farmasi01',
+    judul: 'Farmasi',
+    deskripsi: 'Siapkan obat, cek ulang, lalu serahkan setelah kode pasien cocok',
     ikon: '💊',
   },
 ];
@@ -99,11 +99,17 @@ export class AppLogin extends LitElement {
           <div class="login-brand">
             <div class="login-logo">+</div>
             <h1>MediFlow</h1>
-            <p>Sistem Rekam Medis, Antrean Poli & E-Resep</p>
+            <p>Satu kunjungan, dari daftar sampai obat diambil.</p>
+            <ol class="login-flow">
+              <li><b>1. Daftar</b>Pasien pilih poli dan datang ke rumah sakit.</li>
+              <li><b>2. Periksa</b>Dokter memeriksa dan menulis resep.</li>
+              <li><b>3. Resep</b>Pasien pilih apotek, lalu obat disiapkan.</li>
+              <li><b>4. Ambil</b>Tunjukkan kode di aplikasi ini ke loket.</li>
+            </ol>
           </div>
           <div class="login-card">
-            <h2>Pilih Peran Akses Login</h2>
-            <p class="sub">Setiap peran memiliki form isian dan hak akses berbeda</p>
+            <h2>Masuk sesuai tugas Anda</h2>
+            <p class="sub">Pilih peran. Setiap akun hanya melihat pekerjaan bagiannya.</p>
             ${AKUN.map(
               (item) => html`
                 <button

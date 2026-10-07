@@ -19,6 +19,7 @@ export const mediflowStyles = css`
     min-height: 100%;
     color: var(--text-main);
     font-family: 'Plus Jakarta Sans', sans-serif;
+    --shell-width: min(480px, 100%);
   }
 
   * { box-sizing: border-box; }
@@ -46,6 +47,15 @@ export const mediflowStyles = css`
   }
   .login-brand h1 { font-size: 22px; font-weight: 800; margin: 0; }
   .login-brand p { font-size: 12px; opacity: 0.92; margin: 3px 0 0; }
+  .login-flow {
+    list-style: none; margin: 16px 0 0; padding: 0;
+    display: grid; gap: 8px; text-align: left;
+  }
+  .login-flow li {
+    background: rgba(255, 255, 255, 0.16); border-radius: 12px;
+    padding: 8px 10px; font-size: 12px; line-height: 1.35;
+  }
+  .login-flow b { display: block; font-size: 12px; }
 
   .login-card, .card {
     background: #ffffff;
@@ -87,7 +97,7 @@ export const mediflowStyles = css`
   .input-field:focus, .select-field:focus, .textarea-field:focus { border-color: var(--primary); background: #fcfffe; }
 
   .app {
-    width: min(480px, 100%);
+    width: var(--shell-width);
     margin: 0 auto;
     min-height: 100vh;
     background: var(--bg);
@@ -110,10 +120,47 @@ export const mediflowStyles = css`
   }
   .brand-text h1 { font-size: 15px; font-weight: 800; margin: 0; }
   .brand-text p { font-size: 11px; opacity: 0.92; margin: 0; }
-  .logout-btn {
+  .header-actions { position: relative; display: flex; align-items: center; gap: 8px; }
+  .logout-btn, .icon-btn {
     background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); color: #fff;
-    padding: 6px 11px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer;
+    border-radius: 10px; font-weight: 700; cursor: pointer;
   }
+  .logout-btn { padding: 6px 11px; font-size: 11px; }
+  .icon-btn {
+    position: relative; width: 36px; height: 32px; display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .bell-badge {
+    position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 999px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800;
+    line-height: 16px; text-align: center;
+  }
+  .notify-backdrop {
+    position: fixed; inset: 0; z-index: 40; background: transparent; border: none; padding: 0; cursor: default;
+  }
+  .notify-panel {
+    position: absolute; top: calc(100% + 10px); right: 0; z-index: 5;
+    width: min(360px, calc(100vw - 32px)); max-height: min(360px, 70vh); overflow: auto;
+    background: #fff; color: var(--text-main); text-align: left;
+    border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+    padding: 12px 14px;
+  }
+  .notify-panel h3 { margin: 0 0 8px; font-size: 14px; }
+  .notify-panel .hint { margin-top: 0; }
+  .toast-stack {
+    position: fixed; z-index: 90; left: 50%; transform: translateX(-50%);
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: min(420px, calc(var(--shell-width) - 24px));
+    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto; background: #fff; color: var(--text-main);
+    border: 1px solid var(--primary-border); border-left: 4px solid var(--primary);
+    border-radius: 14px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 12px 14px;
+  }
+  .toast-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .toast h4 { margin: 0; font-size: 13px; }
+  .toast p { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+  .toast button { background: transparent; border: none; color: var(--text-muted); font-size: 16px; font-weight: 800; cursor: pointer; padding: 0 2px; }
   .queue-banner {
     background: #fff; color: var(--text-main); border-radius: 16px; padding: 12px 14px;
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -130,11 +177,34 @@ export const mediflowStyles = css`
   .queue-badge small { font-size: 10px; font-weight: 600; }
 
   .container { padding: 14px 16px; }
+  .layout { display: block; }
+  .block { margin: 0; min-width: 0; }
   .role-banner {
     background: var(--primary-soft); border: 1px solid var(--primary-border); color: var(--primary-dark);
-    padding: 9px 12px; border-radius: 12px; font-size: 11px; font-weight: 700; margin-bottom: 14px;
-    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: 12px; font-size: 12px; font-weight: 650; margin-bottom: 14px;
   }
+  .fase-track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+  .fase-track span {
+    text-align: center; font-size: 10px; font-weight: 800; padding: 5px 2px; border-radius: 999px;
+    background: #fff; color: var(--text-muted); border: 1px solid var(--primary-border);
+  }
+  .fase-track span.done { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .fase-track span.now { color: var(--primary-dark); border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  .role-banner p { margin: 0; line-height: 1.45; }
+  .role-banner p strong { font-weight: 800; }
+  .role-banner .warn { margin-top: 6px; color: #b45309; }
+  .fase-board { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .fase-col {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 12px 4px;
+  }
+  .fase-col.now { border-color: var(--primary); background: #f0fdf8; }
+  .fase-col.done { border-color: var(--primary-border); }
+  .fase-col h3 {
+    margin: 0 0 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .fase-col h3 span { font-size: 10px; font-weight: 700; color: var(--text-muted); }
+  .fase-col.now h3 span { color: var(--primary); }
+  .fase-col .step-item:last-child { padding-bottom: 8px; }
   .section-title {
     font-size: 13px; font-weight: 800; margin: 12px 0 8px;
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -199,13 +269,14 @@ export const mediflowStyles = css`
     padding: 9px 0; border-bottom: 1px solid #f1f5f9;
   }
   .med-item:last-child { border-bottom: none; }
+  .med-item.unread { background: var(--primary-soft); margin: 0 -8px; padding: 9px 8px; border-radius: 10px; }
   .med-item h4 { font-size: 12px; font-weight: 700; margin: 0; }
   .med-item p { font-size: 11px; color: var(--text-muted); margin: 2px 0 0; }
   .med-side { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
   .bottom-nav {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: min(480px, 100%); background: #fff; display: flex; justify-content: space-around;
+    width: var(--shell-width); background: #fff; display: flex; justify-content: space-around;
     padding: 9px 8px calc(12px + env(safe-area-inset-bottom));
     border-top: 1px solid #f1f5f9; box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.05); z-index: 100;
   }
@@ -222,9 +293,115 @@ export const mediflowStyles = css`
   }
   .notice.error { background: var(--danger-soft); color: #b91c1c; border-color: #fecaca; }
   .hint { font-size: 11px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.4; }
+  .hint.warn { color: #b45309; font-weight: 700; }
   .qr-box { text-align: center; }
   .qr-box img { width: 180px; height: 180px; }
   .mono { font-family: ui-monospace, monospace; letter-spacing: 0.4px; }
   .stack { display: flex; flex-direction: column; gap: 8px; }
   hr.line { border: none; border-top: 1px solid #f1f5f9; margin: 12px 0; }
+
+  @media (min-width: 960px) {
+    :host { --shell-width: min(1440px, calc(100% - 32px)); }
+
+    .login-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 28px;
+      background: #e8eef2;
+    }
+    .login-panel {
+      width: min(1040px, 100%);
+      display: grid;
+      grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+      gap: 28px;
+      align-items: center;
+    }
+    .login-brand {
+      text-align: left;
+      margin: 0;
+      padding: 36px 28px;
+      border-radius: 28px;
+      background: linear-gradient(165deg, #059669 0%, #10b981 100%);
+      align-self: stretch;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .login-logo { margin: 0 0 16px; }
+    .login-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 14px;
+      row-gap: 10px;
+      padding: 24px 22px;
+      margin: 0;
+    }
+    .login-card > h2,
+    .login-card > .sub,
+    .login-card > .notice,
+    .login-card > .btn-primary,
+    .login-card > .hint { grid-column: 1 / -1; }
+    .login-card > .role-option,
+    .login-card > .form-group { margin-bottom: 0; }
+    .login-card > .btn-primary { width: min(420px, 100%); justify-self: center; }
+    .login-card h2 { font-size: 20px; }
+    .login-brand h1 { font-size: 28px; }
+    .login-brand p { font-size: 14px; }
+
+    .app { padding-bottom: 108px; }
+    .app-header { padding: 20px 28px 26px; }
+    .brand-text h1 { font-size: 18px; }
+    .brand-text p { font-size: 13px; }
+    .queue-left h2 { font-size: 30px; }
+    .queue-banner { padding: 16px 18px; }
+    .container { padding: 18px 24px 8px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 20px;
+      row-gap: 8px;
+      align-items: start;
+    }
+    .layout > .wide,
+    .layout > .span-all { grid-column: 1 / -1; }
+    .layout .card { margin-bottom: 0; }
+
+    .section-title { font-size: 15px; margin-top: 8px; }
+    .input-field, .select-field, .textarea-field { font-size: 13px; padding: 12px 14px; }
+    .hint, .med-item p, .step-body p, .role-banner { font-size: 13px; }
+    .info-item strong, .med-item h4, .step-body h4 { font-size: 14px; }
+    .wide .info-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .form-row.compact { grid-template-columns: minmax(0, 1fr) 140px; }
+    .form-row.compact-btn { grid-template-columns: minmax(0, 1fr) auto; }
+    .form-row.compact-btn .btn-outline { width: auto; min-width: 160px; padding-left: 16px; padding-right: 16px; }
+    .wide > .card > .btn-primary,
+    .wide > .card > .btn-outline {
+      width: fit-content;
+      min-width: 260px;
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+
+    .fase-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    .role-banner p { font-size: 14px; }
+
+    .bottom-nav {
+      justify-content: center;
+      gap: 10px;
+      border-radius: 18px 18px 0 0;
+    }
+    .nav-item {
+      flex-direction: row;
+      gap: 8px;
+      font-size: 13px;
+      padding: 10px 22px;
+      min-width: 148px;
+    }
+  }
 `;

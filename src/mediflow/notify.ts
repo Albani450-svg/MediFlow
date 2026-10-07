@@ -1,7 +1,8 @@
-/** Notifikasi browser lewat service worker. Gateway WhatsApp tidak dipanggil dari PWA. */
+/** Notifikasi perangkat lewat service worker, hanya saat aplikasi tidak sedang dibuka. */
 export async function notifyBrowser(title: string, body: string): Promise<void> {
   if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
   const sw = navigator.serviceWorker;
   if (!sw) return;
   const reg = await sw.ready;

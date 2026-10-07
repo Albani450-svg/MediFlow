@@ -1,12 +1,13 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import QRCode from 'qrcode';
-import { decryptNik, maskNik } from '../../mediflow/crypto';
+import { maskNik } from '../../mediflow/crypto';
 import { formatJam, formatRp, formatTanggal, labelKetersediaan, labelPenjamin, labelStatusResep } from '../../mediflow/format';
-import { ATURAN_PAKAI, ICD, LANGKAH, LOKET, TINDAKAN, langkah } from '../../mediflow/labels';
-import { mediflow, type Kunjungan } from '../../mediflow/store';
-import type { JenisPenjamin, Role } from '../../mediflow/types';
-import { tanggalIso } from '../../mediflow/rules';
+import { ATURAN_PAKAI, FASE, ICD, LANGKAH, TINDAKAN, langkah, panduan, type KonteksPanduan, type Panduan } from '../../mediflow/labels';
+import { mintaIzinNotifikasi } from '../../mediflow/notify';
+import { mediflow, type Kunjungan, type NotifikasiTampil } from '../../mediflow/store';
+import type { Role } from '../../mediflow/types';
+import { jamPendek, judulNotifikasi, tanggalIso } from '../../mediflow/rules';
 import { go } from '../../router';
 import { mediflowStyles } from '../../styles/mediflow-styles';
 
@@ -25,21 +26,15 @@ export class AppBeranda extends LitElement {
   @state() private showDaftar = false;
   @state() private idPoli = 1;
   @state() private idJadwal = 0;
-  @state() private jenisPenjamin: JenisPenjamin = 'bpjs';
   @state() private keluhanBaru = '';
-  @state() private durasiBaru = '';
-  @state() private alergiBaru = '';
   @state() private keluhan = '';
-  @state() private durasi = '';
-  @state() private alergi = '';
   @state() private tensi = '';
   @state() private suhu = '';
   @state() private berat = '';
-  @state() private loket = LOKET[0];
+  @state() private tinggi = '';
   @state() private kodeIcd = ICD[0].kode;
   @state() private catatan = '';
   @state() private tindakan = TINDAKAN[0];
-  @state() private kontrol = '';
   @state() private idObat = 1;
   @state() private jumlahObat = 10;
   @state() private aturan = ATURAN_PAKAI[0];
@@ -49,10 +44,19 @@ export class AppBeranda extends LitElement {
   @state() private revealNik = false;
   @state() private qrUrl = '';
   @state() private stokDraft: Record<number, string> = {};
+  @state() private panelTerbuka = false;
+  @state() private toasts: { id: number; judul: string; isi: string }[] = [];
 
   private formKunci = '';
   private qrFor = '';
   private lepas = () => {};
+  private dikenal = new Set<number>();
+  private toastTimer = new Map<number, number>();
+  private onSwMessage = (event: MessageEvent) => {
+    const data = event.data as { type?: string } | null;
+    if (data?.type !== 'mediflow-open') return;
+    this.panelTerbuka = true;
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -60,18 +64,26 @@ export class AppBeranda extends LitElement {
       go('/');
       return;
     }
-    this.lepas = mediflow.subscribe(() => this.requestUpdate());
+    mediflow.notifikasiUser().forEach((item) => this.dikenal.add(item.id_notifikasi));
+    this.lepas = mediflow.subscribe(() => {
+      this.tangkapNotifikasiBaru();
+      this.requestUpdate();
+    });
+    navigator.serviceWorker?.addEventListener('message', this.onSwMessage);
   }
 
   disconnectedCallback(): void {
     this.lepas();
+    navigator.serviceWorker?.removeEventListener('message', this.onSwMessage);
+    this.toastTimer.forEach((timer) => window.clearTimeout(timer));
+    this.toastTimer.clear();
     super.disconnectedCallback();
   }
 
   protected willUpdate(): void {
     const kunjungan = this.aktif();
     const kunci = kunjungan
-      ? `${kunjungan.pendaftaran.id_pendaftaran}:${kunjungan.pendaftaran.tahap_alur}`
+      ? `${kunjungan.pendaftaran.id_pendaftaran}:${kunjungan.tahap}`
       : '';
     if (kunci === this.formKunci) return;
     this.formKunci = kunci;
@@ -80,17 +92,15 @@ export class AppBeranda extends LitElement {
     this.pinSerah = '';
     if (!kunjungan) return;
     const periksa = kunjungan.pemeriksaan;
+    const cocok = ICD.find((item) => periksa.diagnosis.startsWith(item.kode));
     this.keluhan = periksa.keluhan;
-    this.durasi = periksa.durasi_keluhan;
-    this.alergi = periksa.alergi;
-    this.tensi = periksa.tensi || '120/80';
-    this.suhu = periksa.suhu || '36.8';
-    this.berat = periksa.berat_badan || '60';
-    this.loket = kunjungan.pendaftaran.loket || LOKET[0];
-    this.kodeIcd = periksa.kode_icd10 || ICD[0].kode;
-    this.catatan = periksa.catatan;
+    this.tensi = periksa.tekanan_darah || '120/80';
+    this.suhu = periksa.suhu_tubuh == null ? '36.8' : String(periksa.suhu_tubuh);
+    this.berat = periksa.berat_badan == null ? '60' : String(periksa.berat_badan);
+    this.tinggi = periksa.tinggi_badan == null ? '165' : String(periksa.tinggi_badan);
+    this.kodeIcd = cocok?.kode ?? ICD[0].kode;
+    this.catatan = periksa.catatan_dokter ?? '';
     this.tindakan = periksa.tindakan || TINDAKAN[0];
-    this.kontrol = periksa.jadwal_kontrol;
     this.idObat = mediflow.obatAktif()[0]?.id_obat ?? 1;
   }
 
@@ -123,9 +133,12 @@ export class AppBeranda extends LitElement {
           item.pendaftaran.status_antrean !== 'Batal'
       );
     }
-    if (aktor.role === 'apoteker') {
+    if (aktor.role === 'farmasi') {
       return semua.filter(
-        (item) => item.resep !== null && item.pendaftaran.tahap_alur >= 5 && item.pendaftaran.status_antrean !== 'Batal'
+        (item) =>
+          item.tahap >= 7 &&
+          item.resep?.pilihan_penebusan !== 'Apotek Luar' &&
+          item.pendaftaran.status_antrean !== 'Batal'
       );
     }
     return semua.filter((item) => item.pendaftaran.tanggal_kunjungan === hari);
@@ -136,18 +149,57 @@ export class AppBeranda extends LitElement {
     const dipilih = daftar.find((item) => item.pendaftaran.id_pendaftaran === this.selectedId);
     if (dipilih) return dipilih;
     return (
-      daftar.find(
-        (item) => item.pendaftaran.status_antrean !== 'Selesai' && item.pendaftaran.status_antrean !== 'Batal'
-      ) ??
+      daftar.find((item) => !item.selesai && item.pendaftaran.status_antrean !== 'Batal') ??
       daftar[0] ??
       null
     );
   }
 
+  private konteks(kunjungan: Kunjungan | null): KonteksPanduan {
+    if (!kunjungan) {
+      return {
+        tahap: 0,
+        checkIn: false,
+        adaKeluhan: false,
+        adaVital: false,
+        adaResepItem: false,
+        pilihan: null,
+        bolehRs: true,
+        batal: false,
+        selesai: false,
+      };
+    }
+    const daftar = kunjungan.pendaftaran;
+    const resep = kunjungan.resep;
+    const pilihan =
+      resep?.pilihan_penebusan === 'Apotek RS'
+        ? 'rs'
+        : resep?.pilihan_penebusan === 'Apotek Luar'
+          ? 'luar'
+          : resep
+            ? 'belum'
+            : null;
+    return {
+      tahap: kunjungan.tahap,
+      checkIn: Boolean(daftar.waktu_check_in),
+      adaKeluhan: Boolean(kunjungan.pemeriksaan.keluhan.trim()),
+      adaVital: Boolean(kunjungan.pemeriksaan.tekanan_darah?.trim()),
+      adaResepItem: kunjungan.detail.length > 0,
+      pilihan,
+      bolehRs: kunjungan.bolehRs,
+      batal: daftar.status_antrean === 'Batal',
+      selesai: kunjungan.selesai,
+    };
+  }
+
+  private infoAlur(role: Role, kunjungan: Kunjungan | null): Panduan {
+    return panduan(role, this.konteks(kunjungan));
+  }
+
   private kodeQr(kunjungan: Kunjungan | null): string {
     if (!kunjungan?.resep) return '';
-    const siap = kunjungan.pendaftaran.tahap_alur >= 9 || kunjungan.resep.status_resep === 'Tebus Luar';
-    return siap ? kunjungan.resep.kode_qr : '';
+    const siap = kunjungan.tahap >= 9 || kunjungan.resep.pilihan_penebusan === 'Apotek Luar';
+    return siap ? kunjungan.resep.kode_qr_unik : '';
   }
 
   private kabar(pesan: string, gagal = false): void {
@@ -165,19 +217,22 @@ export class AppBeranda extends LitElement {
 
   private async simpanDanMajuDokter(kunjungan: Kunjungan): Promise<void> {
     const simpan = mediflow.simpanPemeriksaan(kunjungan.pendaftaran.id_pendaftaran, {
-      kodeIcd: this.kodeIcd,
-      diagnosis: this.icdNama(this.kodeIcd),
+      diagnosis: `${this.kodeIcd} - ${this.icdNama(this.kodeIcd)}`,
       catatan: this.catatan,
       tindakan: this.tindakan,
-      kontrol: this.kontrol,
     });
     if (!simpan.ok) {
       this.hasil(false, '', simpan.error);
       return;
     }
-    if (kunjungan.pendaftaran.tahap_alur === 4 || kunjungan.pendaftaran.tahap_alur === 5) {
+    if (kunjungan.tahap === 4 || kunjungan.tahap === 5) {
+      const dari = kunjungan.tahap;
       const maju = mediflow.majuTahap(kunjungan.pendaftaran.id_pendaftaran);
-      this.hasil(maju.ok, 'Tahap pemeriksaan diperbarui.', maju.ok ? '' : maju.error);
+      const sukses =
+        dari === 4
+          ? 'Pemeriksaan selesai. Berikutnya, kirim resep ke farmasi.'
+          : 'Resep terkirim. Pasien sekarang memilih apotek.';
+      this.hasil(maju.ok, sukses, maju.ok ? '' : maju.error);
       return;
     }
     this.kabar('Catatan medis diperbarui.');
@@ -193,10 +248,7 @@ export class AppBeranda extends LitElement {
     }
     const hasil = mediflow.daftar({
       idJadwal: slot.jadwal.id_jadwal,
-      jenisPenjamin: this.jenisPenjamin,
       keluhan: this.keluhanBaru,
-      durasi: this.durasiBaru,
-      alergi: this.alergiBaru,
     });
     if (!hasil.ok) {
       this.hasil(false, '', hasil.error);
@@ -205,7 +257,54 @@ export class AppBeranda extends LitElement {
     this.selectedId = hasil.data;
     this.showDaftar = false;
     this.keluhanBaru = '';
-    this.kabar('Booking berhasil. Konfirmasi dikirim sebagai pesan WhatsApp.');
+    this.kabar('Pendaftaran berhasil. Konfirmasi masuk ke notifikasi aplikasi.');
+  }
+
+  private tangkapNotifikasiBaru(): void {
+    const sekarang = mediflow.notifikasiUser();
+    const ids = new Set(sekarang.map((item) => item.id_notifikasi));
+    const diganti = [...this.dikenal].some((id) => !ids.has(id));
+    if (diganti) {
+      this.dikenal = ids;
+      return;
+    }
+    const baru = sekarang.filter((item) => !this.dikenal.has(item.id_notifikasi));
+    if (baru.length === 0) return;
+    const masuk = baru.map((item) => {
+      this.dikenal.add(item.id_notifikasi);
+      return { id: item.id_notifikasi, judul: judulNotifikasi(item.jenis_notifikasi, item.pesan), isi: item.pesan };
+    });
+    this.toasts = [...masuk, ...this.toasts].slice(0, 3);
+    masuk.forEach((item) => {
+      const timer = window.setTimeout(() => this.tutupToast(item.id), 6000);
+      this.toastTimer.set(item.id, timer);
+    });
+  }
+
+  private tutupToast(id: number): void {
+    const timer = this.toastTimer.get(id);
+    if (timer !== undefined) window.clearTimeout(timer);
+    this.toastTimer.delete(id);
+    this.toasts = this.toasts.filter((item) => item.id !== id);
+  }
+
+  private tutupPanel(): void {
+    if (!this.panelTerbuka) return;
+    this.panelTerbuka = false;
+    mediflow.tandaiDibaca();
+  }
+
+  private bukaPanel(): void {
+    if (this.panelTerbuka) {
+      this.tutupPanel();
+      return;
+    }
+    this.panelTerbuka = true;
+  }
+
+  private waktuNotifikasi(iso: string | null): string {
+    if (!iso) return '';
+    return `${formatTanggal(iso)} ${formatJam(iso)}`;
   }
 
   render() {
@@ -214,15 +313,21 @@ export class AppBeranda extends LitElement {
     const kunjungan = this.aktif();
     return html`
       <div class="app">
+        ${this.panelTerbuka
+          ? html`<button class="notify-backdrop" aria-label="Tutup notifikasi" @click=${() => this.tutupPanel()}></button>`
+          : nothing}
+        ${this.renderToasts()}
         ${this.renderHeader(aktor.role, aktor.nama_lengkap, kunjungan)}
         <main class="container">
           ${this.notice ? html`<div class="notice ${this.noticeError ? 'error' : ''}">${this.notice}</div>` : ''}
-          ${this.renderBanner(aktor.role)}
-          ${this.tab === 'main'
-            ? this.renderUtama(aktor.role, kunjungan)
-            : this.tab === 'alur'
-              ? this.renderAlur(kunjungan)
-              : this.renderResep(kunjungan, aktor.role)}
+          ${this.renderBanner(aktor.role, kunjungan)}
+          <div class="layout">
+            ${this.tab === 'main'
+              ? this.renderUtama(aktor.role, kunjungan)
+              : this.tab === 'alur'
+                ? this.renderAlur(kunjungan)
+                : this.renderResep(kunjungan, aktor.role)}
+          </div>
         </main>
         ${this.renderNav(aktor.role)}
       </div>
@@ -235,11 +340,20 @@ export class AppBeranda extends LitElement {
         ? `Pasien • ${nama}`
         : role === 'dokter'
           ? `Dokter • ${nama}${mediflow.dokterAktif()?.spesialisasi ? ', ' + mediflow.dokterAktif()!.spesialisasi : ''}`
-          : role === 'apoteker'
-            ? `Apoteker • ${nama}`
+          : role === 'farmasi'
+            ? `Farmasi • ${nama}`
             : 'Petugas • Perawat & Admin';
-    const tahap = kunjungan?.pendaftaran.tahap_alur ?? 0;
-    const judul = kunjungan ? langkah(tahap).judul : 'Belum ada kunjungan aktif';
+    const tahap = kunjungan?.tahap ?? 0;
+    const info = this.infoAlur(role, kunjungan);
+    const judul = kunjungan ? info.status : 'Belum ada kunjungan';
+    const kosong =
+      role === 'pasien'
+        ? 'Pilih poli dan jadwal dokter untuk mendapat nomor antrean'
+        : role === 'dokter'
+          ? 'Belum ada pasien di jadwal Anda hari ini'
+          : role === 'farmasi'
+            ? 'Resep muncul setelah pasien memilih apotek rumah sakit'
+            : 'Belum ada kunjungan hari ini';
     return html`
       <header class="app-header">
         <div class="header-top">
@@ -250,50 +364,72 @@ export class AppBeranda extends LitElement {
               <p>${sub}</p>
             </div>
           </div>
-          <button class="logout-btn" @click=${() => { mediflow.logout(); go('/'); }}>Ganti Akun</button>
+          <div class="header-actions">
+            <button
+              class="icon-btn"
+              aria-label="Notifikasi"
+              aria-expanded=${this.panelTerbuka ? 'true' : 'false'}
+              @click=${() => this.bukaPanel()}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path fill="currentColor" d="M12 3a5 5 0 0 0-5 5v2.1c0 .7-.3 1.4-.8 1.9L4.6 13.6A1.5 1.5 0 0 0 5.7 16h12.6a1.5 1.5 0 0 0 1.1-2.4l-1.6-1.6a2.7 2.7 0 0 1-.8-1.9V8a5 5 0 0 0-5-5zm0 18a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 21z"/>
+              </svg>
+              ${mediflow.jumlahBelumDibaca() > 0
+                ? html`<span class="bell-badge">${mediflow.jumlahBelumDibaca() > 9 ? '9+' : mediflow.jumlahBelumDibaca()}</span>`
+                : nothing}
+            </button>
+            ${this.panelTerbuka ? this.renderPanel() : nothing}
+            <button class="logout-btn" @click=${() => { mediflow.logout(); go('/'); }}>Ganti Akun</button>
+          </div>
         </div>
         <div class="queue-banner">
           <div class="queue-left">
-            <span>${kunjungan ? `${kunjungan.poliNama} • ${labelPenjamin(kunjungan.pendaftaran.jenis_penjamin)}` : 'Antrean'}</span>
-            <h2>${kunjungan?.pendaftaran.kode_booking ?? '—'}</h2>
+            <span>${kunjungan ? `${kunjungan.poliNama} • ${labelPenjamin(kunjungan.nomorBpjs)}` : 'Antrean'}</span>
+            <h2>${kunjungan ? `Antrean ${kunjungan.pendaftaran.nomor_antrean}` : '—'}</h2>
             <p>${judul}</p>
             <small>
               ${kunjungan
-                ? `Antrean ${kunjungan.pendaftaran.nomor_antrean} • Estimasi masuk ${formatJam(kunjungan.pendaftaran.estimasi_jam_masuk)}`
-                : 'Pilih poli dan jadwal dokter untuk mendapat nomor booking'}
+                ? `Estimasi masuk ${formatJam(kunjungan.pendaftaran.estimasi_jam_masuk)} • ${kunjungan.dokterNama}`
+                : kosong}
             </small>
           </div>
           <div class="queue-badge">
-            <strong>${kunjungan ? `${tahap} / 10` : '0 / 10'}</strong>
-            <small>Tahapan</small>
+            <strong>${kunjungan ? `${tahap} / 10` : '—'}</strong>
+            <small>${kunjungan ? FASE.find((fase) => fase.id === info.faseId)?.nama ?? 'Selesai' : 'Mulai'}</small>
           </div>
         </div>
       </header>
     `;
   }
 
-  private renderBanner(role: Role) {
-    const teks =
-      role === 'pasien'
-        ? 'Isi keluhan, pantau progres, dan pilih tempat tebus'
-        : role === 'dokter'
-          ? 'Input diagnosa ICD-10, e-resep, dan ACC poli'
-          : role === 'apoteker'
-            ? 'Racik, cek stok, dan serahkan obat dengan QR'
-            : 'Input tanda vital, loket, dan ACC tahapan';
-    const badge = role === 'pasien' ? 'PASIEN' : role === 'dokter' ? 'DOKTER' : role === 'apoteker' ? 'APOTEKER' : 'ADMIN';
-    return html`<div class="role-banner"><span>${teks}</span><span class="pill">${badge}</span></div>`;
+  private renderBanner(role: Role, kunjungan: Kunjungan | null) {
+    const info = this.infoAlur(role, kunjungan);
+    return html`
+      <div class="role-banner">
+        <div class="fase-track" aria-label="Bagian kunjungan">
+          ${FASE.map((fase) => {
+            const selesai = info.status === 'Kunjungan selesai';
+            const kelas = selesai || info.faseId > fase.id ? 'done' : info.faseId === fase.id ? 'now' : '';
+            return html`<span class=${kelas}>${fase.nama}</span>`;
+          })}
+        </div>
+        <p><strong>${info.status}.</strong> ${info.tindakan}</p>
+        ${info.penghalang ? html`<p class="warn">${info.penghalang}</p>` : nothing}
+      </div>
+    `;
   }
 
   private renderUtama(role: Role, kunjungan: Kunjungan | null) {
     if (role === 'pasien') return this.renderPasien();
-    if (!kunjungan) return html`<div class="card"><p class="hint">Tidak ada kunjungan pada daftar peran ini.</p></div>`;
+    if (!kunjungan) {
+      return html`<section class="block wide"><div class="card"><p class="hint">${this.infoAlur(role, null).tindakan}</p></div></section>`;
+    }
     return html`
       ${this.renderPemilih(kunjungan)}
       ${role === 'dokter'
         ? this.renderDokter(kunjungan)
-        : role === 'apoteker'
-          ? this.renderApoteker(kunjungan)
+        : role === 'farmasi'
+          ? this.renderFarmasi(kunjungan)
           : this.renderAdmin(kunjungan)}
     `;
   }
@@ -302,7 +438,7 @@ export class AppBeranda extends LitElement {
     const daftar = this.daftarPeran();
     if (daftar.length < 2) return nothing;
     return html`
-      <div class="form-group">
+      <div class="form-group span-all">
         <label class="form-label">Kunjungan</label>
         <select
           class="select-field"
@@ -315,7 +451,7 @@ export class AppBeranda extends LitElement {
           ${daftar.map(
             (item) => html`
               <option value=${item.pendaftaran.id_pendaftaran}>
-                ${item.pendaftaran.kode_booking} • ${item.pasienNama} • tahap ${item.pendaftaran.tahap_alur}
+                Antrean ${item.pendaftaran.nomor_antrean} • ${item.pasienNama} • ${langkah(item.tahap).singkat}
               </option>
             `
           )}
@@ -328,7 +464,7 @@ export class AppBeranda extends LitElement {
     const jalan = this.aktif();
     const masih =
       jalan !== null &&
-      jalan.pendaftaran.status_antrean !== 'Selesai' &&
+      !jalan.selesai &&
       jalan.pendaftaran.status_antrean !== 'Batal';
     return html`
       ${this.daftarPeran().length > 1 && jalan ? this.renderPemilih(jalan) : nothing}
@@ -344,50 +480,43 @@ export class AppBeranda extends LitElement {
   }
 
   private renderFormKeluhan(kunjungan: Kunjungan) {
-    const terkunci = kunjungan.pendaftaran.tahap_alur >= 5;
+    const terkunci = kunjungan.tahap >= 5;
     return html`
+      <section class="block wide">
       <div class="section-title">
-        1. Form Data & Keluhan Pasien
-        <span class="pill">${terkunci ? 'Terkunci' : 'Dapat diubah'}</span>
+        Keluhan untuk dokter
+        <span class="pill">${terkunci ? 'Terkunci' : 'Masih bisa diubah'}</span>
       </div>
       <div class="card">
         <div class="info-grid">
           <div class="info-item"><small>Poliklinik</small><strong>${kunjungan.poliNama}</strong></div>
           <div class="info-item"><small>Dokter</small><strong>${kunjungan.dokterNama}</strong></div>
-          <div class="info-item"><small>Penjamin</small><strong>${labelPenjamin(kunjungan.pendaftaran.jenis_penjamin)}</strong></div>
-          <div class="info-item"><small>Jadwal</small><strong>${kunjungan.jadwal.jam_mulai}–${kunjungan.jadwal.jam_selesai}</strong></div>
+          <div class="info-item"><small>Penjamin</small><strong>${labelPenjamin(kunjungan.nomorBpjs)}</strong></div>
+          <div class="info-item"><small>Jadwal</small><strong>${jamPendek(kunjungan.jadwal.jam_mulai)}–${jamPendek(kunjungan.jadwal.jam_selesai)}</strong></div>
         </div>
         <div class="form-group">
           <label class="form-label">Keluhan utama</label>
           <textarea class="textarea-field" .value=${this.keluhan} ?disabled=${terkunci} @input=${(event: Event) => { this.keluhan = nilai(event); }}></textarea>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Lama keluhan</label>
-            <input class="input-field" .value=${this.durasi} ?disabled=${terkunci} @input=${(event: Event) => { this.durasi = nilai(event); }} />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Riwayat alergi obat</label>
-            <input class="input-field" .value=${this.alergi} ?disabled=${terkunci} @input=${(event: Event) => { this.alergi = nilai(event); }} />
-          </div>
-        </div>
         <button
           class="btn-primary"
           ?disabled=${terkunci}
           @click=${() => {
-            const hasil = mediflow.simpanKeluhan(kunjungan.pendaftaran.id_pendaftaran, this.keluhan, this.durasi, this.alergi);
+            const hasil = mediflow.simpanKeluhan(kunjungan.pendaftaran.id_pendaftaran, this.keluhan);
             this.hasil(hasil.ok, 'Keluhan tersimpan untuk dokter.', hasil.ok ? '' : hasil.error);
           }}
-        >Simpan Data Keluhan Pasien</button>
+        >Simpan keluhan</button>
       </div>
+      </section>
     `;
   }
 
   private renderFormDaftar(tampil: boolean, adaJalan: boolean) {
     const slot = mediflow.slotHari(tanggalIso(), this.idPoli);
     return html`
+      <section class="block wide">
       <div class="section-title">
-        ${adaJalan ? 'Kunjungan baru' : 'Daftar poliklinik'}
+        ${adaJalan ? 'Kunjungan lain' : 'Daftar poliklinik'}
         ${adaJalan
           ? html`<button class="btn-small" @click=${() => { this.showDaftar = !this.showDaftar; }}>${this.showDaftar ? 'Tutup' : 'Buka'}</button>`
           : html`<span>Kuota dicek otomatis</span>`}
@@ -403,11 +532,8 @@ export class AppBeranda extends LitElement {
                   </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Penjamin biaya</label>
-                  <select class="select-field" .value=${this.jenisPenjamin} @change=${(event: Event) => { this.jenisPenjamin = nilai(event) as JenisPenjamin; }}>
-                    <option value="bpjs">BPJS Kesehatan</option>
-                    <option value="umum">Umum</option>
-                  </select>
+                  <label class="form-label">Penjamin</label>
+                  <input class="input-field" readonly .value=${labelPenjamin(mediflow.pasienAktif()?.nomor_bpjs ?? null)} />
                 </div>
               </div>
               <div class="form-group">
@@ -416,7 +542,7 @@ export class AppBeranda extends LitElement {
                   ${slot.map(
                     (item) => html`
                       <option value=${item.jadwal.id_jadwal}>
-                        ${item.dokterNama}, ${item.spesialisasi} • ${item.jadwal.jam_mulai}–${item.jadwal.jam_selesai} • sisa ${item.sisa}
+                        ${item.dokterNama}, ${item.spesialisasi} • ${jamPendek(item.jadwal.jam_mulai)}–${jamPendek(item.jadwal.jam_selesai)} • sisa ${item.sisa}
                       </option>
                     `
                   )}
@@ -426,43 +552,26 @@ export class AppBeranda extends LitElement {
                 <label class="form-label">Keluhan utama</label>
                 <textarea class="textarea-field" placeholder="Contoh: Demam naik turun, nyeri menelan..." .value=${this.keluhanBaru} @input=${(event: Event) => { this.keluhanBaru = nilai(event); }}></textarea>
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">Lama keluhan</label>
-                  <input class="input-field" placeholder="Mis: 3 Hari" .value=${this.durasiBaru} @input=${(event: Event) => { this.durasiBaru = nilai(event); }} />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Riwayat alergi obat</label>
-                  <input class="input-field" placeholder="Mis: Tidak ada / Penisilin" .value=${this.alergiBaru} @input=${(event: Event) => { this.alergiBaru = nilai(event); }} />
-                </div>
-              </div>
-              <button class="btn-primary" id="btn-daftar" @click=${() => this.daftarBaru()}>Daftar dan dapatkan nomor booking</button>
-              <p class="hint">Satu pasien tidak bisa daftar dua kali pada jadwal dan tanggal yang sama. Nomor antrean tidak boleh kembar.</p>
+              <button class="btn-primary" id="btn-daftar" @click=${() => this.daftarBaru()}>Daftar dan dapatkan nomor antrean</button>
+              <p class="hint">Penjamin mengikuti nomor BPJS di profil. Satu pasien tidak bisa mengambil jadwal yang sama dua kali. Poli tanpa jadwal hari ini tidak muncul.</p>
             </div>
           `
         : nothing}
+      </section>
     `;
   }
 
   private renderStatus(kunjungan: Kunjungan) {
-    const tahap = kunjungan.pendaftaran.tahap_alur;
-    const item = langkah(tahap);
-    const selesai = tahap === 10;
+    const sudah = Boolean(kunjungan.pendaftaran.waktu_check_in);
+    const bolehBatal = kunjungan.tahap > 0 && kunjungan.tahap <= 3 && kunjungan.pendaftaran.status_antrean !== 'Batal';
     return html`
+      <section class="block">
       <div class="section-title">
-        2. Status tahapan antrean
-        <span class=${selesai ? 'pill' : 'pill-warn'}>${selesai ? 'Kunjungan selesai' : `Menunggu ${item.pemilikNama}`}</span>
+        Kedatangan
+        <span class=${sudah ? 'pill' : 'pill-warn'}>${sudah ? 'Sudah check-in' : 'Belum check-in'}</span>
       </div>
       <div class="card">
-        <div class="step-item current">
-          <div class="step-dot">${tahap}</div>
-          <div class="step-body">
-            <h4>${item.judul}</h4>
-            <p>${item.deskripsi}</p>
-            <span class="owner-tag">Petugas pemroses: ${item.pemilikNama}</span>
-          </div>
-        </div>
-        <p class="hint">Pasien tidak memajukan tahapan sendiri. Tahap berpindah saat dokter, admin, atau apoteker memberi ACC.</p>
+        <p class="hint" style="margin-top:0;">Check-in saat Anda sampai di rumah sakit. Pendaftaran bisa dibatalkan sebelum masuk ruang dokter.</p>
         <div class="btn-row">
           <button
             class="btn-outline"
@@ -474,44 +583,48 @@ export class AppBeranda extends LitElement {
           >${kunjungan.pendaftaran.waktu_check_in ? `Check-in ${formatJam(kunjungan.pendaftaran.waktu_check_in)}` : 'Check-in kedatangan'}</button>
           <button
             class="btn-outline danger"
-            ?disabled=${kunjungan.pendaftaran.tahap_alur > 3}
+            ?disabled=${!bolehBatal}
             @click=${() => {
               const hasil = mediflow.batalkan(kunjungan.pendaftaran.id_pendaftaran);
               this.hasil(hasil.ok, 'Pendaftaran dibatalkan. Kuota dikembalikan.', hasil.ok ? '' : hasil.error);
             }}
-          >Batalkan booking</button>
+          >Batalkan pendaftaran</button>
         </div>
       </div>
+      </section>
     `;
   }
 
   private renderRingkasan(kunjungan: Kunjungan) {
     const periksa = kunjungan.pemeriksaan;
-    const icd = periksa.kode_icd10 ? `${periksa.kode_icd10} - ${periksa.diagnosis}` : '-';
     return html`
-      <div class="section-title">3. Ringkasan hasil pemeriksaan<span>Rekam medis</span></div>
+      <section class="block">
+      <div class="section-title">Hasil pemeriksaan<span>Rekam medis</span></div>
       <div class="card">
         <div class="info-grid">
-          <div class="info-item"><small>Tensi dan suhu</small><strong>${periksa.tensi || '-'} | ${periksa.suhu || '-'}</strong></div>
-          <div class="info-item"><small>Diagnosa ICD-10</small><strong>${icd}</strong></div>
+          <div class="info-item"><small>Tekanan darah</small><strong>${periksa.tekanan_darah || '-'}</strong></div>
+          <div class="info-item"><small>Suhu</small><strong>${periksa.suhu_tubuh ?? '-'}</strong></div>
+          <div class="info-item"><small>Berat dan tinggi</small><strong>${periksa.berat_badan ?? '-'} kg / ${periksa.tinggi_badan ?? '-'} cm</strong></div>
+          <div class="info-item"><small>Diagnosis</small><strong>${periksa.diagnosis || '-'}</strong></div>
           <div class="info-item"><small>Tindakan</small><strong>${periksa.tindakan || '-'}</strong></div>
-          <div class="info-item"><small>Kontrol ulang</small><strong>${periksa.jadwal_kontrol || '-'}</strong></div>
         </div>
         <small class="form-label">Catatan medis dokter</small>
-        <p class="hint">${periksa.catatan || 'Belum ada catatan.'}</p>
+        <p class="hint">${periksa.catatan_dokter || 'Belum ada catatan.'}</p>
       </div>
+      </section>
     `;
   }
 
   private renderPilihan(kunjungan: Kunjungan) {
     const resep = kunjungan.resep;
-    if (!resep?.waktu_dikirim) return nothing;
+    if (!kunjungan.resepTerkirim || !resep) return nothing;
     return html`
-      <div class="section-title">Pilihan penebusan<span>${labelStatusResep(resep.status_resep)}</span></div>
+      <section class="block">
+      <div class="section-title">Pilihan apotek<span>${resep.pilihan_penebusan === 'Apotek Luar' ? 'Dibawa ke apotek luar' : labelStatusResep(resep.status_resep)}</span></div>
       <div class="card">
-        ${resep.pilihan_tebus === 'belum_memilih'
+        ${resep.pilihan_penebusan === 'Belum Memilih'
           ? html`
-              <p class="hint">Tombol apotek RS nonaktif jika ada item yang stoknya kurang dari jumlah resep.</p>
+              <p class="hint">Pilih satu tempat. Apotek rumah sakit hanya aktif jika semua obat tersedia.</p>
               <div class="btn-row">
                 <button
                   class="btn-primary"
@@ -532,32 +645,38 @@ export class AppBeranda extends LitElement {
             `
           : html`
               <p class="hint">
-                Pilihan terkunci: ${resep.pilihan_tebus === 'apotek_rs' ? 'Apotek RS' : 'Apotek luar'}.
-                ${resep.estimasi_selesai ? ` Estimasi selesai racik ${formatJam(resep.estimasi_selesai)}.` : ''}
+                Pilihan terkunci: ${resep.pilihan_penebusan}.
+                ${resep.estimasi_jam_selesai ? ` Estimasi selesai racik ${formatJam(resep.estimasi_jam_selesai)}.` : ''}
               </p>
             `}
       </div>
+      </section>
     `;
   }
 
   private renderQr(kunjungan: Kunjungan) {
     const resep = kunjungan.resep;
     if (!resep) return nothing;
-    const tampil = kunjungan.pendaftaran.tahap_alur >= 9 || resep.status_resep === 'Tebus Luar';
+    const tampil = kunjungan.tahap >= 9 || resep.pilihan_penebusan === 'Apotek Luar';
     if (!tampil) return nothing;
+    const luar = resep.pilihan_penebusan === 'Apotek Luar';
     return html`
-      <div class="section-title">Kode pengambilan<span>${resep.qr_dipakai ? 'Sudah dipakai' : 'Sekali pakai'}</span></div>
+      <section class="block">
+      <div class="section-title">Kode pengambilan<span>${kunjungan.qrDipakai ? 'Sudah dipakai' : 'Sekali pakai'}</span></div>
       <div class="card qr-box">
         ${this.qrUrl ? html`<img src=${this.qrUrl} alt="Kode QR resep" />` : nothing}
-        <p class="mono">${resep.kode_qr}</p>
+        <p class="mono">${resep.kode_qr_unik}</p>
         <p class="hint">
-          ${resep.kode_qr_kedaluwarsa
-            ? `Berlaku sampai ${formatTanggal(resep.kode_qr_kedaluwarsa)} ${formatJam(resep.kode_qr_kedaluwarsa)}.`
-            : 'Tunjukkan kode ini di apotek.'}
-          ${resep.pin_pengambil ? ` PIN keluarga: ${resep.pin_pengambil}.` : ''}
-          PIN tidak dikirim lewat WhatsApp.
+          ${luar
+            ? 'Bawa kode ini ke apotek luar. Stok rumah sakit tidak berkurang.'
+            : resep.kadaluarsa_qr
+              ? `Tunjukkan kode ini di farmasi rumah sakit. Berlaku sampai ${formatTanggal(resep.kadaluarsa_qr)} ${formatJam(resep.kadaluarsa_qr)}.`
+              : 'Tunjukkan kode ini di farmasi rumah sakit.'}
+          ${kunjungan.pinKeluarga ? ` PIN keluarga: ${kunjungan.pinKeluarga}.` : ''}
+          PIN hanya tampil di aplikasi ini.
         </p>
       </div>
+      </section>
     `;
   }
 
@@ -565,83 +684,122 @@ export class AppBeranda extends LitElement {
     const pasien = mediflow.pasienAktif();
     const user = mediflow.userAktif();
     if (!pasien || !user) return nothing;
-    const nik = decryptNik(pasien.nik_terenkripsi);
     return html`
-      <div class="section-title">Profil pasien<span>${pasien.no_rekam_medis}</span></div>
+      <section class="block">
+      <div class="section-title">Profil pasien<span>${labelPenjamin(pasien.nomor_bpjs)}</span></div>
       <div class="card">
         <div class="info-grid">
-          <div class="info-item"><small>Nama</small><strong>${pasien.nama}</strong></div>
-          <div class="info-item"><small>NIK</small><strong>${this.revealNik ? nik : maskNik(nik)}</strong></div>
+          <div class="info-item"><small>Nama</small><strong>${pasien.nama_lengkap}</strong></div>
+          <div class="info-item"><small>NIK</small><strong>${this.revealNik ? pasien.nik : maskNik(pasien.nik)}</strong></div>
           <div class="info-item"><small>Lahir</small><strong>${formatTanggal(pasien.tanggal_lahir)} • ${pasien.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</strong></div>
-          <div class="info-item"><small>BPJS</small><strong>${pasien.no_bpjs ?? '-'}</strong></div>
-          <div class="info-item"><small>WhatsApp</small><strong>${user.no_wa}</strong></div>
-          <div class="info-item"><small>WA terverifikasi</small><strong>${user.wa_terverifikasi_pada ? formatTanggal(user.wa_terverifikasi_pada) : 'Belum'}</strong></div>
+          <div class="info-item"><small>BPJS</small><strong>${pasien.nomor_bpjs ?? '-'}</strong></div>
+          <div class="info-item"><small>Nomor HP</small><strong>${pasien.no_telepon}</strong></div>
+          <div class="info-item"><small>Notifikasi</small><strong>Di aplikasi</strong></div>
         </div>
-        <p class="hint">${pasien.alamat}</p>
+        <p class="hint">${pasien.alamat ?? ''}</p>
         <button class="btn-outline" @click=${() => { this.revealNik = !this.revealNik; }}>
           ${this.revealNik ? 'Sembunyikan NIK' : 'Tampilkan NIK'}
         </button>
-        <p class="hint">NIK disimpan terenkripsi di data lokal, bukan sebagai teks polos. SATUSEHAT: ${pasien.terdaftar_satusehat ? 'riwayat kunjungan ditandai terkirim' : 'belum dikirim'}.</p>
+        <p class="hint">NIK ditampilkan tertutup di layar. SATUSEHAT: ${pasien.terdaftar_satusehat ? 'riwayat kunjungan ditandai terkirim' : 'belum dikirim'}.</p>
+      </div>
+      </section>
+    `;
+  }
+
+  private renderItemNotifikasi(pesan: NotifikasiTampil[]) {
+    return pesan.map(
+      (item) => html`
+        <div class="med-item ${item.dibaca ? '' : 'unread'}">
+          <div>
+            <h4>${judulNotifikasi(item.jenis_notifikasi, item.pesan)}</h4>
+            <p>${item.pesan}</p>
+            <p>${this.waktuNotifikasi(item.waktu_dikirim ?? item.created_at)}</p>
+          </div>
+          <span class="pill">${item.dibaca ? 'Dibaca' : 'Baru'}</span>
+        </div>
+      `
+    );
+  }
+
+  private renderToasts() {
+    if (this.toasts.length === 0) return nothing;
+    return html`
+      <div class="toast-stack">
+        ${this.toasts.map(
+          (item) => html`
+            <div class="toast" role="status">
+              <div class="toast-top">
+                <h4>${item.judul}</h4>
+                <button aria-label="Tutup" @click=${() => this.tutupToast(item.id)}>×</button>
+              </div>
+              <p>${item.isi}</p>
+            </div>
+          `
+        )}
       </div>
     `;
   }
 
-  private renderPesan() {
+  private renderPanel() {
     const pesan = mediflow.notifikasiUser();
     return html`
-      <div class="section-title">Pesan WhatsApp<span>${pesan.length}</span></div>
+      <div class="notify-panel" role="dialog" aria-label="Notifikasi aplikasi">
+        <h3>Notifikasi aplikasi</h3>
+        ${pesan.length === 0
+          ? html`<p class="hint">Belum ada notifikasi di akun ini. Pembaruan kunjungan masuk ke aplikasi pasien.</p>`
+          : this.renderItemNotifikasi(pesan)}
+      </div>
+    `;
+  }
+
+  private renderPesan(lebar = false) {
+    const pesan = mediflow.notifikasiUser();
+    const belum = pesan.filter((item) => !item.dibaca).length;
+    return html`
+      <section class="block${lebar ? ' wide' : ''}">
+      <div class="section-title">Notifikasi aplikasi<span>${belum > 0 ? `${belum} baru` : pesan.length}</span></div>
       <div class="card">
-        ${pesan.length === 0 ? html`<p class="hint">Belum ada pesan.</p>` : nothing}
-        ${pesan.map(
-          (item) => html`
-            <div class="med-item">
-              <div>
-                <h4>${item.jenis_kejadian.replaceAll('_', ' ')}</h4>
-                <p>${item.isi_pesan}</p>
-              </div>
-              <span class="pill">${item.status_kirim}</span>
-            </div>
-          `
-        )}
-        <p class="hint">Gateway WhatsApp disimulasikan. Isi pesan tidak menyebut nama obat atau diagnosis. Percobaan kirim: tercatat di tiap baris.</p>
+        ${pesan.length === 0 ? html`<p class="hint">Belum ada notifikasi.</p>` : this.renderItemNotifikasi(pesan)}
+        <p class="hint">Semua pemberitahuan kunjungan masuk ke aplikasi ini. Isi tidak menyebut nama obat atau diagnosis.</p>
+        ${belum > 0
+          ? html`<button class="btn-outline" @click=${() => mediflow.tandaiDibaca()}>Tandai sudah dibaca</button>`
+          : nothing}
         <button
           class="btn-outline"
           @click=${async () => {
-            const izin = await Notification.requestPermission();
-            if (izin !== 'granted') {
-              this.kabar('Izin notifikasi browser ditolak.', true);
-              return;
-            }
-            const hasil = await mediflow.aktifkanPush();
-            this.hasil(hasil.ok, 'Perangkat dicatat di push subscription.', hasil.ok ? '' : hasil.error);
+            const izin = await mintaIzinNotifikasi();
+            this.hasil(
+              izin,
+              'Perangkat siap menampilkan notifikasi saat aplikasi di latar.',
+              'Izin notifikasi perangkat ditolak. Notifikasi tetap tampil di dalam aplikasi.'
+            );
           }}
-        >${mediflow.punyaPush() ? 'Notifikasi browser aktif' : 'Aktifkan notifikasi browser'}</button>
+        >${typeof Notification !== 'undefined' && Notification.permission === 'granted' ? 'Notifikasi perangkat aktif' : 'Izinkan notifikasi perangkat'}</button>
       </div>
+      </section>
     `;
   }
 
   private renderDokter(kunjungan: Kunjungan) {
     const periksa = kunjungan.pemeriksaan;
-    const tahap = kunjungan.pendaftaran.tahap_alur;
+    const tahap = kunjungan.tahap;
     const terkunci = tahap > 5;
-    const labelTombol =
-      tahap === 4
-        ? 'Simpan diagnosa dan ACC pemeriksaan'
-        : tahap === 5
-          ? 'Validasi dan kirim e-resep ke farmasi'
-          : 'Perbarui catatan medis';
+    const info = this.infoAlur('dokter', kunjungan);
+    const labelTombol = info.milikAnda ? info.tombol : 'Simpan catatan saja';
     return html`
-      <div class="section-title">Data keluhan dan tanda vital<span>${kunjungan.noRekamMedis}</span></div>
+      <section class="block wide">
+      <div class="section-title">Data keluhan dan tanda vital<span>${kunjungan.pasienNama}</span></div>
       <div class="card">
-        <div class="allergy-alert">Riwayat alergi obat pasien: ${periksa.alergi || 'Tidak ada'}</div>
         <div class="info-grid">
           <div class="info-item"><small>Keluhan</small><strong>${periksa.keluhan || '-'}</strong></div>
-          <div class="info-item"><small>Lama sakit</small><strong>${periksa.durasi_keluhan || '-'}</strong></div>
-          <div class="info-item"><small>Tekanan darah</small><strong>${periksa.tensi || '-'}</strong></div>
-          <div class="info-item"><small>Suhu dan berat</small><strong>${periksa.suhu || '-'} / ${periksa.berat_badan || '-'}</strong></div>
+          <div class="info-item"><small>Tekanan darah</small><strong>${periksa.tekanan_darah || '-'}</strong></div>
+          <div class="info-item"><small>Suhu</small><strong>${periksa.suhu_tubuh ?? '-'}</strong></div>
+          <div class="info-item"><small>Berat dan tinggi</small><strong>${periksa.berat_badan ?? '-'} kg / ${periksa.tinggi_badan ?? '-'} cm</strong></div>
         </div>
       </div>
-      <div class="section-title">Form pemeriksaan<span class="pill">Tahap ${tahap}</span></div>
+      </section>
+      <section class="block wide">
+      <div class="section-title">Form pemeriksaan<span class="pill">${info.milikAnda ? 'Giliran Anda' : 'Lihat saja'}</span></div>
       <div class="card">
         <div class="form-group">
           <label class="form-label">Kode dan nama diagnosa (ICD-10)</label>
@@ -651,30 +809,24 @@ export class AppBeranda extends LitElement {
         </div>
         <div class="form-group">
           <label class="form-label">Anamnesa dan catatan fisik</label>
-          <textarea class="textarea-field" .value=${this.catatan} @input=${(event: Event) => { this.catatan = nilai(event); }}></textarea>
+          <textarea class="textarea-field" placeholder="Catatan pemeriksaan" .value=${this.catatan} @input=${(event: Event) => { this.catatan = nilai(event); }}></textarea>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Tindakan</label>
-            <select class="select-field" .value=${this.tindakan} @change=${(event: Event) => { this.tindakan = nilai(event); }}>
-              ${TINDAKAN.map((item) => html`<option value=${item}>${item}</option>`)}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Tanggal kontrol</label>
-            <input class="input-field" .value=${this.kontrol} @input=${(event: Event) => { this.kontrol = nilai(event); }} />
-          </div>
+        <div class="form-group">
+          <label class="form-label">Tindakan</label>
+          <select class="select-field" .value=${this.tindakan} @change=${(event: Event) => { this.tindakan = nilai(event); }}>
+            ${TINDAKAN.map((item) => html`<option value=${item}>${item}</option>`)}
+          </select>
         </div>
         <hr class="line" />
         <div class="form-group">
           <label class="form-label">E-resep dari master obat</label>
-          <div class="form-row">
+          <div class="form-row compact">
             <select class="select-field" .value=${String(this.idObat)} @change=${(event: Event) => { this.idObat = Number(nilai(event)); }}>
-              ${mediflow.obatAktif().map((obat) => html`<option value=${obat.id_obat}>${obat.nama_obat} • stok ${obat.stok}</option>`)}
+              ${mediflow.obatAktif().map((obat) => html`<option value=${obat.id_obat}>${obat.nama_obat} • stok ${obat.stok_rs}</option>`)}
             </select>
             <input class="input-field" type="number" min="1" .value=${String(this.jumlahObat)} @input=${(event: Event) => { this.jumlahObat = Number(nilai(event)); }} />
           </div>
-          <div class="form-row" style="margin-top:8px;">
+          <div class="form-row compact-btn" style="margin-top:8px;">
             <select class="select-field" .value=${this.aturan} @change=${(event: Event) => { this.aturan = nilai(event); }}>
               ${ATURAN_PAKAI.map((item) => html`<option value=${item}>${item}</option>`)}
             </select>
@@ -689,24 +841,19 @@ export class AppBeranda extends LitElement {
             >+ Tambah obat</button>
           </div>
         </div>
-        ${this.renderDaftarObat(kunjungan, true)}
+        ${this.renderDaftarObat(kunjungan, !terkunci)}
         <button class="btn-primary" id="btn-dokter" @click=${() => this.simpanDanMajuDokter(kunjungan)}>${labelTombol}</button>
-        <p class="hint">
-          ${tahap === 4
-            ? 'Pasien sedang diperiksa di ruang poli Anda.'
-            : tahap === 5
-              ? 'Kirim meneruskan resep ke instalasi farmasi tanpa menuliskan nama obat di WhatsApp.'
-              : `Tahap saat ini dikelola pada langkah ${tahap}.`}
-        </p>
+        <p class="hint">${info.penghalang ?? info.tindakan}</p>
       </div>
+      </section>
     `;
   }
 
   private renderAdmin(kunjungan: Kunjungan) {
-    const tahap = kunjungan.pendaftaran.tahap_alur;
-    const item = langkah(tahap);
-    const selesai = tahap >= 10;
+    const selesai = kunjungan.selesai || kunjungan.pendaftaran.status_antrean === 'Batal';
+    const info = this.infoAlur('admin', kunjungan);
     return html`
+      <section class="block">
       <div class="section-title">Skrining perawat<span>Tanda vital</span></div>
       <div class="card">
         <div class="form-row-3">
@@ -719,55 +866,66 @@ export class AppBeranda extends LitElement {
             <input class="input-field" .value=${this.suhu} @input=${(event: Event) => { this.suhu = nilai(event); }} />
           </div>
           <div class="form-group">
-            <label class="form-label">Berat</label>
+            <label class="form-label">Berat (kg)</label>
             <input class="input-field" .value=${this.berat} @input=${(event: Event) => { this.berat = nilai(event); }} />
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Loket farmasi</label>
-          <select class="select-field" .value=${this.loket} @change=${(event: Event) => { this.loket = nilai(event); }}>
-            ${LOKET.map((loket) => html`<option value=${loket}>${loket}</option>`)}
-          </select>
+          <label class="form-label">Tinggi (cm)</label>
+          <input class="input-field" .value=${this.tinggi} @input=${(event: Event) => { this.tinggi = nilai(event); }} />
         </div>
         <button
           class="btn-outline"
           style="margin-top:0;"
           @click=${() => {
-            const hasil = mediflow.simpanVital(kunjungan.pendaftaran.id_pendaftaran, this.tensi, this.suhu, this.berat, this.loket);
-            this.hasil(hasil.ok, 'Tanda vital dan loket diperbarui.', hasil.ok ? '' : hasil.error);
+            const hasil = mediflow.simpanVital(
+              kunjungan.pendaftaran.id_pendaftaran,
+              this.tensi,
+              this.suhu,
+              this.berat,
+              this.tinggi
+            );
+            this.hasil(hasil.ok, 'Tanda vital diperbarui.', hasil.ok ? '' : hasil.error);
           }}
-        >Update data tanda vital dan loket</button>
+        >Simpan tanda vital</button>
       </div>
-      <div class="section-title">Kontrol ACC alur<span class="pill">Tahap ${tahap}/10</span></div>
+      </section>
+      <section class="block">
+      <div class="section-title">Lanjutkan kunjungan<span class="pill">${info.milikAnda ? 'Giliran Anda' : info.giliran}</span></div>
       <div class="card">
-        <p class="hint">${item.judul} — ${item.deskripsi}</p>
+        <p class="hint" style="margin-top:0;">${info.tindakan}</p>
+        ${info.penghalang ? html`<p class="hint warn">${info.penghalang}</p>` : nothing}
         <button
           class="btn-primary"
           id="btn-admin"
           ?disabled=${selesai}
           @click=${() => {
             const hasil = mediflow.majuTahap(kunjungan.pendaftaran.id_pendaftaran);
-            this.hasil(hasil.ok, 'Tahap dilanjutkan.', hasil.ok ? '' : hasil.error);
+            this.hasil(hasil.ok, 'Kunjungan berpindah ke langkah berikutnya.', hasil.ok ? '' : hasil.error);
           }}
-        >${selesai ? 'Seluruh 10 tahap selesai' : `Beri ACC (${item.pemilikNama}) → tahap ${Math.min(tahap + 1, 10)}`}</button>
+        >${selesai ? 'Kunjungan selesai' : info.tombol}</button>
         <button
           class="btn-outline"
           @click=${() => {
             mediflow.resetDemo();
             this.formKunci = '';
             this.selectedId = 0;
-            this.kabar('Data demo dikembalikan ke kunjungan tahap 4.');
+            this.kabar('Data demo dikembalikan ke pemeriksaan dokter.');
           }}
-        >Reset simulasi ke data awal</button>
+        >Kembalikan data demo</button>
       </div>
+      </section>
       ${this.renderJejak()}
     `;
   }
 
-  private renderApoteker(kunjungan: Kunjungan) {
+  private renderFarmasi(kunjungan: Kunjungan) {
     const resep = kunjungan.resep;
-    const tahap = kunjungan.pendaftaran.tahap_alur;
+    const tahap = kunjungan.tahap;
+    const info = this.infoAlur('farmasi', kunjungan);
+    const bolehLanjut = tahap === 7 || tahap === 8;
     return html`
+      <section class="block">
       <div class="section-title">
         Antrean farmasi
         <span>${resep ? labelStatusResep(resep.status_resep) : 'Belum ada resep'}</span>
@@ -775,20 +933,24 @@ export class AppBeranda extends LitElement {
       <div class="card">
         <div class="info-grid">
           <div class="info-item"><small>Pasien</small><strong>${kunjungan.pasienNama}</strong></div>
-          <div class="info-item"><small>Resep</small><strong>${resep?.nomor_resep ?? '-'}</strong></div>
-          <div class="info-item"><small>Loket</small><strong>${kunjungan.pendaftaran.loket}</strong></div>
-          <div class="info-item"><small>Estimasi racik</small><strong>${formatJam(resep?.estimasi_selesai)}</strong></div>
+          <div class="info-item"><small>Resep</small><strong>${resep ? `Resep #${resep.id_resep}` : '-'}</strong></div>
+          <div class="info-item"><small>Tempat</small><strong>Farmasi rumah sakit</strong></div>
+          <div class="info-item"><small>Estimasi racik</small><strong>${formatJam(resep?.estimasi_jam_selesai)}</strong></div>
         </div>
         ${this.renderDaftarObat(kunjungan, false)}
-        <button
-          class="btn-primary"
-          ?disabled=${tahap < 7 || tahap >= 9}
-          @click=${() => {
-            const hasil = mediflow.majuTahap(kunjungan.pendaftaran.id_pendaftaran);
-            this.hasil(hasil.ok, 'Status farmasi diperbarui.', hasil.ok ? '' : hasil.error);
-          }}
-        >${tahap < 7 ? 'Menunggu kasir dan pilihan pasien' : tahap === 7 ? 'Selesaikan racik, lanjut QC' : tahap === 8 ? 'QC selesai, panggil pasien' : 'Obat sudah dipanggil'}</button>
+        ${bolehLanjut
+          ? html`<button
+              class="btn-primary"
+              @click=${() => {
+                const hasil = mediflow.majuTahap(kunjungan.pendaftaran.id_pendaftaran);
+                this.hasil(hasil.ok, 'Status farmasi diperbarui.', hasil.ok ? '' : hasil.error);
+              }}
+            >${info.tombol}</button>`
+          : nothing}
+        <p class="hint">${info.penghalang ?? info.tindakan}</p>
       </div>
+      </section>
+      <section class="block">
       <div class="section-title">Serah terima QR<span>1×24 jam</span></div>
       <div class="card">
         <div class="form-group">
@@ -816,8 +978,10 @@ export class AppBeranda extends LitElement {
             this.hasil(hasil.ok, 'Obat diserahkan. Stok berkurang dan QR tidak bisa dipakai lagi.', hasil.ok ? '' : hasil.error);
           }}
         >Verifikasi dan serahkan obat</button>
-        <p class="hint">QR yang kedaluwarsa atau sudah dipindai ditolak. Pasien tanpa ponsel dapat dilayani admin lewat jalur loket manual.</p>
+        <p class="hint">Kode yang kedaluwarsa atau sudah dipakai ditolak. Jika keluarga yang mengambil, minta PIN yang tampil di aplikasi pasien.</p>
       </div>
+      </section>
+      <section class="block wide">
       <div class="section-title">Stok obat<span>Log setiap perubahan</span></div>
       <div class="card">
         ${mediflow.obatAktif().map(
@@ -825,14 +989,14 @@ export class AppBeranda extends LitElement {
             <div class="med-item">
               <div>
                 <h4>${obat.nama_obat}</h4>
-                <p>${obat.bentuk_kekuatan} • minimum ${obat.stok_minimum} • ${obat.jenis_obat}${obat.nomor_batch ? ` • batch ${obat.nomor_batch}` : ''}</p>
+                <p>${obat.kode_kemenkes} • ${obat.satuan} • minimum ${obat.stok_minimum} • ${obat.jenis_obat}</p>
               </div>
               <div class="med-side">
                 <input
                   class="input-field"
                   style="width:64px;"
                   type="number"
-                  .value=${this.stokDraft[obat.id_obat] ?? String(obat.stok)}
+                  .value=${this.stokDraft[obat.id_obat] ?? String(obat.stok_rs)}
                   @input=${(event: Event) => {
                     this.stokDraft = { ...this.stokDraft, [obat.id_obat]: nilai(event) };
                   }}
@@ -840,7 +1004,7 @@ export class AppBeranda extends LitElement {
                 <button
                   class="btn-small"
                   @click=${() => {
-                    const hasil = mediflow.sesuaikanStok(obat.id_obat, Number(this.stokDraft[obat.id_obat] ?? obat.stok), 'Hitung ulang stok fisik');
+                    const hasil = mediflow.sesuaikanStok(obat.id_obat, Number(this.stokDraft[obat.id_obat] ?? obat.stok_rs), 'Hitung ulang stok fisik');
                     this.hasil(hasil.ok, `Stok ${obat.nama_obat} disesuaikan.`, hasil.ok ? '' : hasil.error);
                   }}
                 >Simpan</button>
@@ -849,6 +1013,7 @@ export class AppBeranda extends LitElement {
           `
         )}
       </div>
+      </section>
       ${this.renderJejak()}
     `;
   }
@@ -857,12 +1022,12 @@ export class AppBeranda extends LitElement {
     if (kunjungan.detail.length === 0) return html`<p class="hint">Belum ada item resep.</p>`;
     return html`
       ${kunjungan.detail.map((item) => {
-        const bayar = kunjungan.pendaftaran.jenis_penjamin === 'umum' || !item.obat.cover_bpjs;
+        const bayar = !kunjungan.nomorBpjs || !item.obat.cover_bpjs;
         return html`
           <div class="med-item">
             <div>
               <h4>${item.obat.nama_obat}</h4>
-              <p>${item.aturan_pakai}${item.instruksi_racikan ? ` • ${item.instruksi_racikan}` : ''}</p>
+              <p>${item.dosis_aturan_pakai}${item.instruksi_racikan ? ` • ${item.instruksi_racikan}` : ''}</p>
               <p>${bayar ? `Berbayar ${formatRp(item.obat.harga * item.jumlah)}` : 'Ditanggung BPJS'}</p>
             </div>
             <div class="med-side">
@@ -878,73 +1043,99 @@ export class AppBeranda extends LitElement {
   }
 
   private renderAlur(kunjungan: Kunjungan | null) {
-    const tahap = kunjungan?.pendaftaran.tahap_alur ?? 0;
+    const role = mediflow.userAktif()?.role ?? 'pasien';
+    const tahap = kunjungan?.tahap ?? 0;
+    const info = this.infoAlur(role, kunjungan);
     return html`
+      <section class="block wide">
       <div class="section-title">
-        10 tahap alur antrean dan farmasi
-        <span>${tahap * 10}% selesai</span>
+        Perjalanan kunjungan
+        <span>${tahap ? `Langkah ${tahap} dari 10` : 'Belum mulai'}</span>
       </div>
       <div class="card">
-        ${LANGKAH.map((item) => {
-          const kelas = item.tahap < tahap ? 'done' : item.tahap === tahap ? 'current' : '';
-          return html`
-            <div class="step-item ${kelas}">
-              <div class="step-dot">${item.tahap < tahap ? '✓' : item.tahap}</div>
-              <div class="step-body">
-                <h4>${item.judul}</h4>
-                <p>${item.deskripsi}</p>
-                <span class="owner-tag">Otoritas ACC: ${item.pemilikNama}</span>
+        <p class="hint" style="margin-top:0;">
+          Kunjungan berjalan dari daftar, periksa, resep, sampai obat diambil.
+          Bagian berbingkai hijau adalah posisi sekarang. Pasien menunggu. Petugas bagian itu yang melanjutkan dari halaman tugasnya.
+        </p>
+        <div class="fase-board">
+          ${FASE.map((fase) => {
+            const selesai = info.status === 'Kunjungan selesai';
+            const keadaan = selesai || info.faseId > fase.id ? 'done' : info.faseId === fase.id ? 'now' : '';
+            const label = keadaan === 'done' ? 'Selesai' : keadaan === 'now' ? 'Sekarang' : 'Nanti';
+            return html`
+              <div class="fase-col ${keadaan}">
+                <h3>${fase.nama}<span>${label}</span></h3>
+                ${LANGKAH.filter((item) => item.tahap >= fase.dari && item.tahap <= fase.sampai).map((item) => {
+                  const kelas = selesai || (tahap > 0 && item.tahap < tahap) ? 'done' : item.tahap === tahap ? 'current' : '';
+                  return html`
+                    <div class="step-item ${kelas}">
+                      <div class="step-dot">${kelas === 'done' ? '✓' : item.tahap}</div>
+                      <div class="step-body">
+                        <h4>${item.judul}</h4>
+                        <p>${item.deskripsi}</p>
+                        <span class="owner-tag">${item.tahap === tahap ? 'Sedang dikerjakan · ' : ''}${item.pemilikNama}</span>
+                      </div>
+                    </div>
+                  `;
+                })}
               </div>
-            </div>
-          `;
-        })}
+            `;
+          })}
+        </div>
       </div>
+      </section>
     `;
   }
 
   private renderResep(kunjungan: Kunjungan | null, role: Role) {
-    if (!kunjungan) return html`<div class="card"><p class="hint">Pilih kunjungan untuk melihat e-resep.</p></div>`;
+    if (!kunjungan) {
+      return html`<section class="block wide"><div class="card"><p class="hint">${this.infoAlur(role, null).tindakan}</p></div></section>`;
+    }
     return html`
+      <section class="block wide">
       <div class="section-title">
         Daftar obat e-resep
-        <span class="pill">${kunjungan.pendaftaran.loket}</span>
+        <span class="pill">${kunjungan.resep?.pilihan_penebusan === 'Apotek Luar' ? 'Apotek luar' : 'Farmasi rumah sakit'}</span>
       </div>
       <div class="card">
-        <p class="hint">${kunjungan.resep ? `${kunjungan.resep.nomor_resep} • ${labelStatusResep(kunjungan.resep.status_resep)}` : 'Resep belum dibuat.'}</p>
-        ${this.renderDaftarObat(kunjungan, role === 'dokter' && kunjungan.pendaftaran.tahap_alur <= 5)}
+        <p class="hint">${kunjungan.resep ? `Resep #${kunjungan.resep.id_resep} • ${kunjungan.resepTerkirim ? labelStatusResep(kunjungan.resep.status_resep) : 'Belum dikirim dokter'}` : 'Resep belum dibuat.'}</p>
+        ${this.renderDaftarObat(kunjungan, role === 'dokter' && !kunjungan.resepTerkirim && kunjungan.tahap <= 5)}
       </div>
-      ${role === 'pasien' ? html`${this.renderPilihan(kunjungan)}${this.renderQr(kunjungan)}${this.renderPesan()}` : nothing}
+      </section>
+      ${role === 'pasien' ? html`${this.renderPilihan(kunjungan)}${this.renderQr(kunjungan)}${this.renderPesan(true)}` : nothing}
     `;
   }
 
   private renderJejak() {
     const db = mediflow.snapshot();
     return html`
-      <div class="section-title">Jejak stok dan akses<span>${db.audit_log.length} audit</span></div>
+      <section class="block wide">
+      <div class="section-title">Jejak stok dan akses<span>${db.log_aktivitas.length} catatan</span></div>
       <div class="card">
-        ${mediflow.logStokTerbaru().map((log) => {
+        ${mediflow.mutasiTerbaru().map((log) => {
           const obat = db.obat.find((item) => item.id_obat === log.id_obat);
-          return html`<div class="med-item"><div><h4>${obat?.nama_obat ?? 'Obat'} • ${log.jenis}</h4><p>${log.stok_sebelum} → ${log.stok_sesudah}. ${log.keterangan}</p></div></div>`;
+          return html`<div class="med-item"><div><h4>${obat?.nama_obat ?? 'Obat'} • ${log.jenis_mutasi}</h4><p>${log.stok_sebelum} → ${log.stok_sesudah}. ${log.keterangan ?? ''}</p></div></div>`;
         })}
-        ${mediflow.auditTerbaru().map(
-          (log) => html`<div class="med-item"><div><h4>${log.aksi}</h4><p>${log.entitas} #${log.id_entitas} • ${log.keterangan}</p></div></div>`
+        ${mediflow.aktivitasTerbaru().map(
+          (log) => html`<div class="med-item"><div><h4>${log.aktivitas}</h4><p>${log.tabel_referensi ?? '-'} #${log.id_referensi ?? '-'} • ${log.keterangan ?? ''}</p></div></div>`
         )}
-        ${db.log_stok.length === 0 && db.audit_log.length === 0 ? html`<p class="hint">Belum ada jejak.</p>` : nothing}
+        ${db.mutasi_stok.length === 0 && db.log_aktivitas.length === 0 ? html`<p class="hint">Belum ada jejak.</p>` : nothing}
       </div>
+      </section>
     `;
   }
 
   private renderNav(role: Role) {
-    const utama = role === 'pasien' ? 'Data Saya' : role === 'dokter' ? 'Form Medis' : role === 'apoteker' ? 'Farmasi' : 'Kontrol';
+    const utama = role === 'pasien' ? 'Data Saya' : role === 'dokter' ? 'Form Medis' : role === 'farmasi' ? 'Farmasi' : 'Kontrol';
     const item = (id: 'main' | 'alur' | 'resep', ikon: string, label: string) => html`
-      <button class="nav-item ${this.tab === id ? 'active' : ''}" @click=${() => { this.tab = id; }}>
+      <button class="nav-item ${this.tab === id ? 'active' : ''}" @click=${() => { this.tab = id; this.tutupPanel(); }}>
         <span>${ikon}</span><span>${label}</span>
       </button>
     `;
     return html`
       <nav class="bottom-nav">
         ${item('main', '📝', utama)}
-        ${item('alur', '📋', '10 Tahap')}
+        ${item('alur', '📋', 'Alur')}
         ${item('resep', '💊', 'E-Resep')}
       </nav>
     `;
