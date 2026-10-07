@@ -2,27 +2,20 @@
   "name": "mediflow",
   "version": "0.1.0",
   "description": "PWA antrean poliklinik, rekam medis, dan e-resep MediFlow.",
-  "main": "index.js",
   "scripts": {
     "api": "node scripts/start-api.mjs",
-    "dev-server": "vite --open",
-    "dev": "npm run dev-server",
-    "dev-task": "vite",
-    "deploy": "npx @azure/static-web-apps-cli login --no-use-keychain && npx @azure/static-web-apps-cli deploy",
+    "dev": "vite --open",
     "build": "tsc && vite build",
+    "check": "node scripts/run-check.mjs",
     "start": "npm run dev",
     "start-remote": "vite --host"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@awesome.me/webawesome": "^3.10.0",
     "lit": "^3.3.3",
     "qrcode": "^1.5.4",
-    "urlpattern-polyfill": "^10.1.0",
-    "workbox-build": "^7.4.1",
-    "workbox-core": "^7.4.1",
-    "workbox-precaching": "^7.4.1"
+    "urlpattern-polyfill": "^10.1.0"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.6",

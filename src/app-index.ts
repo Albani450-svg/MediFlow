@@ -1,6 +1,7 @@
 import { LitElement, css } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { router } from './router';
+import './styles/global.css';
 
 @customElement('app-index')
 export class AppIndex extends LitElement {

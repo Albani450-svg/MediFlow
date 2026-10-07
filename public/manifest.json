@@ -8,7 +8,7 @@
   "lang": "id",
   "theme_color": "#059669",
   "description": "Antrean poliklinik, rekam medis, dan e-resep rumah sakit.",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#f8fafc",
   "related_applications": [],
   "prefer_related_applications": false,
@@ -37,13 +37,6 @@
     {
       "src": "assets/icons/24x24.png",
       "sizes": "24x24",
-      "type": "image/png"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "assets/screenshots/screen.png",
-      "sizes": "1617x1012",
       "type": "image/png"
     }
   ],
