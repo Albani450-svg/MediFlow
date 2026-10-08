@@ -149,4 +149,4 @@ Ini aplikasi pengembangan, bukan rancangan produksi.
 - NIK pada demo disamarkan di peramban. Produksi mengenkripsi NIK di server.
 - `PUT /api/database` mengganti seluruh isi tabel. Tidak ada penggabungan perubahan dari dua pengguna.
 - API pengembangan hanya dijangkau dari komputer ini, kecuali `npm run start-remote` membuka halaman Vite ke jaringan lokal.
-- Tidak ada pemindai QR. Petugas mengetik kode yang terlihat di aplikasi pasien.
+- Belum ada pemindai QR. Petugas mengetik kode yang terlihat di aplikasi pasien.
