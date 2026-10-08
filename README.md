@@ -50,7 +50,11 @@ Perlu Node.js, PHP 8.1 atau lebih baru (ekstensi `intl`, dipakai CodeIgniter), C
 npm install
 composer install --working-dir=backend
 
-# 3. Buka aplikasi. Vite juga menyalakan API bila port 8088 masih kosong.
+# 3. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
+#    Perintah ini mengganti isi tabel medicflow_db.
+npm run dummy
+
+# 4. Buka aplikasi. Vite juga menyalakan API bila port 8088 masih kosong.
 npm run dev
 ```
 
@@ -61,9 +65,25 @@ npm run dev
 
 Koneksi MySQL ada di `backend/app/Config/Database.php`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`.
 
-`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri.
+`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `npm run dummy` mengisi data uji dari `src/mediflow/seed.ts` dan mengganti isi tabel.
 
-Jika API atau MySQL mati, aplikasi memakai salinan di `localStorage` dengan kunci `mediflow-db-v2`. Master data cadangan: Poli Umum, Gigi, Anak, dan Mata; Dr. Ahmad praktik Senin dan Rabu pukul 08.00–12.00 di Poli Umum; empat obat (Paracetamol, Amoxicillin, Cetirizine, Racikan Batuk). Salinan peramban juga menyertakan satu kunjungan demo agar alur terlihat tanpa MySQL.
+Layar masuk tetap empat akun di atas. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di database supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
+
+| Antrean | Pasien | Posisi | Yang bisa dicoba |
+| --- | --- | --- | --- |
+| 1 | Budi Santoso Edit | Pemeriksaan dokter | `dokter01` menulis diagnosis dan mengirim resep |
+| 2 | Hendra Saputra | Belum check-in | Admin tidak bisa lanjut sebelum pasien check-in |
+| 3 | Andi Wijaya | Sudah check-in | `admin` mengisi tanda vital |
+| 4 | Rina Kusuma | Ruang tunggu, alergi penisilin | `admin` memanggil masuk ruang |
+| 5 | Joko Susilo | Diagnosis sudah ada, resep belum kirim | `dokter01` mengirim resep |
+| 6 | Maya Anggraini | Sudah pilih Apotek RS | `admin` meneruskan ke farmasi |
+| 7 | Dewi Lestari | Antrean farmasi | `farmasi01` menyiapkan obat |
+| 8 | Agus Pratama | Sedang diracik | `farmasi01` cek ulang |
+| 9 | Siti Rahayu | Siap diambil | Kode `MF-SITI-SIAP`, PIN keluarga `482913` |
+
+Budi juga punya dua kunjungan lama: satu selesai di apotek rumah sakit, satu ditebus di apotek luar. Cetirizine di bawah stok minimum. Vitamin C disembunyikan dan tetap menempel pada resep lama. Dr. Ahmad praktik setiap hari pukul 08.00–12.00. Poli lain punya jadwal di hari kerja, jadi Budi bisa mendaftar kunjungan kedua dari tombol Kunjungan lain.
+
+Jika API atau MySQL mati, aplikasi memakai salinan di `localStorage` dengan kunci `mediflow-db-v2`. Salinan itu memakai data uji yang sama. Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini.
 
 ## Perintah
 
@@ -74,6 +94,7 @@ Jika API atau MySQL mati, aplikasi memakai salinan di `localStorage` dengan kunc
 | `npm run start-remote` | Vite yang menerima koneksi dari jaringan lokal |
 | `npm run build` | Pemeriksaan TypeScript, lalu hasil produksi di `dist/` |
 | `npm run check` | Pemeriksaan alur: jadwal ganda, stok habis, kode QR yang dipakai ulang, dan catatan stok |
+| `npm run dummy` | Mengisi `medicflow_db` dengan data uji hari ini. Isi tabel yang ada diganti |
 
 ## Struktur
 

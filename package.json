@@ -7,6 +7,7 @@
     "dev": "vite --open",
     "build": "tsc && vite build",
     "check": "node scripts/run-check.mjs",
+    "dummy": "node scripts/isi-dummy.mjs",
     "start": "npm run dev",
     "start-remote": "vite --host"
   },
