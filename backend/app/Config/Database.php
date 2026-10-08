@@ -194,6 +194,13 @@ class Database extends Config
     {
         parent::__construct();
 
+        $this->default['hostname'] = (string) env('MEDIFLOW_DB_HOST', $this->default['hostname']);
+        $this->default['username'] = (string) env('MEDIFLOW_DB_USER', $this->default['username']);
+        $sandi = env('MEDIFLOW_DB_PASSWORD', $this->default['password']);
+        $this->default['password'] = $sandi === null ? '' : (string) $sandi;
+        $this->default['database'] = (string) env('MEDIFLOW_DB_NAME', $this->default['database']);
+        $this->default['port'] = (int) env('MEDIFLOW_DB_PORT', $this->default['port']);
+
         // Ensure that we always set the database group to 'tests' if
         // we are currently running an automated test suite, so that
         // we don't overwrite live data on accident.

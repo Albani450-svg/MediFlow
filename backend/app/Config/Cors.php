@@ -108,6 +108,7 @@ class Cors extends BaseConfig
             'GET',
             'POST',
             'PUT',
+            'PATCH',
             'DELETE',
             'OPTIONS',
         ],

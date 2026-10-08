@@ -55,6 +55,6 @@ const dipanggilLangsung = process.argv[1] && import.meta.url === pathToFileURL(p
 if (dipanggilLangsung) {
   pastikanApi().then((hidup) => {
     if (!hidup) process.exit(1);
-    console.log(`[mediflow] API CodeIgniter medicflow_db di http://127.0.0.1:${API_PORT}/api/pasien`);
+    console.log(`[mediflow] API CodeIgniter medicflow_db di http://127.0.0.1:${API_PORT}/api/database`);
   });
 }

@@ -10,11 +10,6 @@ class DatabaseController extends BaseController
 {
     public function index()
     {
-        $tolak = $this->hanyaLokal();
-        if ($tolak !== null) {
-            return $tolak;
-        }
-
         try {
             $snap = new MedicflowSnapshot();
 
@@ -32,11 +27,6 @@ class DatabaseController extends BaseController
 
     public function update()
     {
-        $tolak = $this->hanyaLokal();
-        if ($tolak !== null) {
-            return $tolak;
-        }
-
         $data = $this->request->getJSON(true);
         if (! is_array($data)) {
             return $this->response->setStatusCode(400)->setJSON([
@@ -56,18 +46,5 @@ class DatabaseController extends BaseController
                 'error' => $error->getMessage(),
             ], true);
         }
-    }
-
-    private function hanyaLokal()
-    {
-        $asal = (string) $this->request->getServer('REMOTE_ADDR');
-        if (in_array($asal, ['127.0.0.1', '::1'], true)) {
-            return null;
-        }
-
-        return $this->response->setStatusCode(403)->setJSON([
-            'ok' => false,
-            'error' => 'API hanya melayani komputer ini.',
-        ], true);
     }
 }

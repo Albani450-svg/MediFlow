@@ -63,7 +63,7 @@ npm run dev
 - Hanya API: `npm run api`
 - Komputer lain di jaringan yang sama: `npm run start-remote`, lalu buka alamat LAN yang dicetak Vite
 
-Koneksi MySQL ada di `backend/app/Config/Database.php`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`.
+Koneksi MySQL ada di `backend/app/Config/Database.php`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
 
 `db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `npm run dummy` mengisi data uji dari `src/mediflow/seed.ts` dan mengganti isi tabel.
 
@@ -129,24 +129,23 @@ Kode domain ada di `src/mediflow/`:
 | `store.ts` | Status aplikasi, masuk, kunjungan, resep, dan stok |
 | `rules.ts` | Tahap kunjungan, bentrok jadwal, stok, dan teks notifikasi |
 | `labels.ts` | Sepuluh langkah, empat bagian, dan kalimat spanduk |
-| `remote.ts` | Ambil dan simpan seluruh database lewat API |
+| `remote.ts` | Ambil dan simpan seluruh database lewat `GET`/`PUT /api/database` |
 | `seed.ts` | Data cadangan bila server tidak menjawab |
 | `crypto.ts` | Hash kata sandi demo dan penyamaran NIK |
 | `notify.ts` | Izin dan notifikasi perangkat |
 | `format.ts` | Tanggal, jam, dan rupiah |
 
-API kustom CodeIgniter:
+API kustom CodeIgniter ada di `backend/app/Controllers/Api/`. PWA tetap memakai `GET` dan `PUT /api/database`. Selain itu setiap tabel punya CRUD:
 
-| Berkas | Isi |
+| Metode | Jalur |
 | --- | --- |
-| `backend/app/Controllers/Api/DatabaseController.php` | `GET` dan `PUT /api/database` |
-| `backend/app/Controllers/Api/PasienController.php` | CRUD `/api/pasien` |
-| `backend/app/Libraries/MedicflowSnapshot.php` | Baca dan tulis seluruh tabel |
-| `backend/app/Models/PasienModel.php` | Baris pasien |
-| `backend/app/Config/Routes.php` | Rute di atas |
-| `backend/app/Config/Database.php` | Koneksi MySQL |
+| GET, PUT, POST | `/api/database` |
+| GET, POST | `/api/users`, `/api/pasien`, `/api/poliklinik`, `/api/dokter`, `/api/jadwal_dokter`, `/api/obat`, `/api/pendaftaran_poli`, `/api/pemeriksaan`, `/api/resep`, `/api/detail_resep`, `/api/notifikasi`, `/api/otp_verifikasi`, `/api/pengambilan_obat`, `/api/mutasi_stok`, `/api/log_aktivitas` |
+| GET, PUT, PATCH, DELETE | jalur yang sama ditambah `/{id}` |
 
-Vite meneruskan permintaan `/api` ke `127.0.0.1:8088`. Setiap penyimpanan mengirim seluruh database. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
+Balasan CRUD berbentuk `{ "status", "message", "data" }`. Daftar bisa disaring lewat query, misalnya `GET /api/pendaftaran_poli?id_pasien=2&tanggal_kunjungan=2026-10-08`. Semua jalur `/api` hanya menjawab dari komputer ini. Jadwal yang bertumpuk, kuota di bawah antrean hari ini, atau jadwal yang disembunyikan padahal masih ada antrean hari ini ditolak. Pasien tidak bisa mendaftar dua kali pada jadwal dan tanggal yang sama. Pesan notifikasi tidak boleh memuat kata WhatsApp, nama obat, atau diagnosis.
+
+Vite meneruskan permintaan `/api` ke `127.0.0.1:8088`. Setiap penyimpanan PWA mengirim seluruh database. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
 
 Tabel: `users`, `pasien`, `poliklinik`, `dokter`, `jadwal_dokter`, `obat`, `pendaftaran_poli`, `pemeriksaan`, `resep`, `detail_resep`, `notifikasi`, `otp_verifikasi`, `pengambilan_obat`, `mutasi_stok`, `log_aktivitas`.
 
