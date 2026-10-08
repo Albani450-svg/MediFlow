@@ -6,7 +6,7 @@ import { formatJam, formatRp, formatTanggal, labelKetersediaan, labelPenjamin, l
 import { ATURAN_PAKAI, FASE, ICD, LANGKAH, TINDAKAN, langkah, panduan, type KonteksPanduan, type Panduan } from '../../mediflow/labels';
 import { mintaIzinNotifikasi } from '../../mediflow/notify';
 import { mediflow, type Kunjungan, type NotifikasiTampil } from '../../mediflow/store';
-import type { Role } from '../../mediflow/types';
+import type { Hari, Role } from '../../mediflow/types';
 import { jamPendek, judulNotifikasi, tanggalIso } from '../../mediflow/rules';
 import { go } from '../../router';
 import { mediflowStyles } from '../../styles/mediflow-styles';
@@ -19,7 +19,7 @@ function nilai(event: Event): string {
 export class AppBeranda extends LitElement {
   static styles = mediflowStyles;
 
-  @state() private tab: 'main' | 'alur' | 'resep' = 'main';
+  @state() private tab: 'main' | 'alur' | 'resep' | 'data' = 'main';
   @state() private selectedId = 0;
   @state() private notice = '';
   @state() private noticeError = false;
@@ -27,7 +27,9 @@ export class AppBeranda extends LitElement {
   @state() private idPoli = 1;
   @state() private idJadwal = 0;
   @state() private keluhanBaru = '';
+  @state() private catatanDaftar = '';
   @state() private keluhan = '';
+  @state() private catatanAlergi = '';
   @state() private tensi = '';
   @state() private suhu = '';
   @state() private berat = '';
@@ -47,8 +49,23 @@ export class AppBeranda extends LitElement {
   @state() private panelTerbuka = false;
   @state() private toasts: { id: number; judul: string; isi: string }[] = [];
   @state() private menunggu = true;
+  @state() private waToast = '';
+  @state() private obatEdit = 0;
+  @state() private obatKode = '';
+  @state() private obatNama = '';
+  @state() private obatStok = '';
+  @state() private obatHarga = '';
+  @state() private obatSatuan = 'Tablet';
+  @state() private obatJenis: 'Jadi' | 'Racikan' = 'Jadi';
+  @state() private obatBpjs = false;
+  @state() private jadwalEdit = 0;
+  @state() private jadwalHari: Hari = 'Senin';
+  @state() private jadwalMulai = '';
+  @state() private jadwalSelesai = '';
+  @state() private jadwalKuota = '';
 
   private formKunci = '';
+  private waTimer = 0;
   private qrFor = '';
   private lepas = () => {};
   private dikenal = new Set<number>();
@@ -85,6 +102,7 @@ export class AppBeranda extends LitElement {
     navigator.serviceWorker?.removeEventListener('message', this.onSwMessage);
     this.toastTimer.forEach((timer) => window.clearTimeout(timer));
     this.toastTimer.clear();
+    window.clearTimeout(this.waTimer);
     super.disconnectedCallback();
   }
 
@@ -102,6 +120,8 @@ export class AppBeranda extends LitElement {
     const periksa = kunjungan.pemeriksaan;
     const cocok = ICD.find((item) => periksa.diagnosis.startsWith(item.kode));
     this.keluhan = periksa.keluhan;
+    const catatan = kunjungan.pendaftaran.catatan_pasien?.trim() ?? '';
+    this.catatanAlergi = catatan && catatan !== periksa.keluhan.trim() ? catatan : '';
     this.tensi = periksa.tekanan_darah || '120/80';
     this.suhu = periksa.suhu_tubuh == null ? '36.8' : String(periksa.suhu_tubuh);
     this.berat = periksa.berat_badan == null ? '60' : String(periksa.berat_badan);
@@ -210,6 +230,20 @@ export class AppBeranda extends LitElement {
     return siap ? kunjungan.resep.kode_qr_unik : '';
   }
 
+  private tampilkanWa(nomor: string): void {
+    this.waToast = `QR pengambilan resep dikirim ke nomor pasien ${nomor}.`;
+    window.clearTimeout(this.waTimer);
+    this.waTimer = window.setTimeout(() => {
+      this.waToast = '';
+    }, 4000);
+  }
+
+  private teksAlergi(kunjungan: Kunjungan): string {
+    const catatan = kunjungan.pendaftaran.catatan_pasien?.trim() ?? '';
+    if (!catatan || catatan === kunjungan.pemeriksaan.keluhan.trim()) return 'Tidak ada alergi obat';
+    return catatan;
+  }
+
   private kabar(pesan: string, gagal = false): void {
     this.notice = pesan;
     this.noticeError = gagal;
@@ -236,6 +270,7 @@ export class AppBeranda extends LitElement {
     if (kunjungan.tahap === 4 || kunjungan.tahap === 5) {
       const dari = kunjungan.tahap;
       const maju = mediflow.majuTahap(kunjungan.pendaftaran.id_pendaftaran);
+      if (maju.ok && dari === 5) this.tampilkanWa(kunjungan.noTelepon);
       const sukses =
         dari === 4
           ? 'Pemeriksaan selesai. Berikutnya, kirim resep ke farmasi.'
@@ -257,6 +292,7 @@ export class AppBeranda extends LitElement {
     const hasil = mediflow.daftar({
       idJadwal: slot.jadwal.id_jadwal,
       keluhan: this.keluhanBaru,
+      catatan: this.catatanDaftar,
     });
     if (!hasil.ok) {
       this.hasil(false, '', hasil.error);
@@ -265,6 +301,7 @@ export class AppBeranda extends LitElement {
     this.selectedId = hasil.data;
     this.showDaftar = false;
     this.keluhanBaru = '';
+    this.catatanDaftar = '';
     this.kabar('Pendaftaran berhasil. Konfirmasi masuk ke notifikasi aplikasi.');
   }
 
@@ -322,8 +359,20 @@ export class AppBeranda extends LitElement {
     const aktor = mediflow.userAktif();
     if (!aktor) return nothing;
     const kunjungan = this.aktif();
+    const tab = aktor.role === 'pasien' && this.tab === 'data' ? 'main' : this.tab;
     return html`
       <div class="app">
+        ${this.waToast
+          ? html`
+              <div class="wa-toast" role="status">
+                <div class="wa-icon">WA</div>
+                <div>
+                  <h4>Pesan WhatsApp terkirim</h4>
+                  <p>${this.waToast}</p>
+                </div>
+              </div>
+            `
+          : nothing}
         ${this.panelTerbuka
           ? html`<button class="notify-backdrop" aria-label="Tutup notifikasi" @click=${() => this.tutupPanel()}></button>`
           : nothing}
@@ -333,11 +382,13 @@ export class AppBeranda extends LitElement {
           ${this.notice ? html`<div class="notice ${this.noticeError ? 'error' : ''}">${this.notice}</div>` : ''}
           ${this.renderBanner(aktor.role, kunjungan)}
           <div class="layout">
-            ${this.tab === 'main'
+            ${tab === 'main'
               ? this.renderUtama(aktor.role, kunjungan)
-              : this.tab === 'alur'
+              : tab === 'alur'
                 ? this.renderAlur(kunjungan)
-                : this.renderResep(kunjungan, aktor.role)}
+                : tab === 'data'
+                  ? this.renderData(aktor.role)
+                  : this.renderResep(kunjungan, aktor.role)}
           </div>
         </main>
         ${this.renderNav(aktor.role)}
@@ -509,12 +560,21 @@ export class AppBeranda extends LitElement {
           <label class="form-label">Keluhan utama</label>
           <textarea class="textarea-field" .value=${this.keluhan} ?disabled=${terkunci} @input=${(event: Event) => { this.keluhan = nilai(event); }}></textarea>
         </div>
+        <div class="form-group">
+          <label class="form-label">Catatan alergi obat</label>
+          <input class="input-field" placeholder="Kosongkan jika tidak ada alergi" .value=${this.catatanAlergi} ?disabled=${terkunci} @input=${(event: Event) => { this.catatanAlergi = nilai(event); }} />
+        </div>
         <button
           class="btn-primary"
           ?disabled=${terkunci}
           @click=${() => {
-            const hasil = mediflow.simpanKeluhan(kunjungan.pendaftaran.id_pendaftaran, this.keluhan);
-            this.hasil(hasil.ok, 'Keluhan tersimpan untuk dokter.', hasil.ok ? '' : hasil.error);
+            const keluhan = mediflow.simpanKeluhan(kunjungan.pendaftaran.id_pendaftaran, this.keluhan);
+            if (!keluhan.ok) {
+              this.hasil(false, '', keluhan.error);
+              return;
+            }
+            const catatan = mediflow.simpanCatatan(kunjungan.pendaftaran.id_pendaftaran, this.catatanAlergi);
+            this.hasil(catatan.ok, 'Keluhan dan catatan alergi tersimpan.', catatan.ok ? '' : catatan.error);
           }}
         >Simpan keluhan</button>
       </div>
@@ -562,6 +622,10 @@ export class AppBeranda extends LitElement {
               <div class="form-group">
                 <label class="form-label">Keluhan utama</label>
                 <textarea class="textarea-field" placeholder="Contoh: Demam naik turun, nyeri menelan..." .value=${this.keluhanBaru} @input=${(event: Event) => { this.keluhanBaru = nilai(event); }}></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Catatan alergi obat</label>
+                <input class="input-field" placeholder="Contoh: Alergi penisilin. Kosongkan jika tidak ada." .value=${this.catatanDaftar} @input=${(event: Event) => { this.catatanDaftar = nilai(event); }} />
               </div>
               <button class="btn-primary" id="btn-daftar" @click=${() => this.daftarBaru()}>Daftar dan dapatkan nomor antrean</button>
               <p class="hint">Penjamin mengikuti nomor BPJS di profil. Satu pasien tidak bisa mengambil jadwal yang sama dua kali. Poli tanpa jadwal hari ini tidak muncul.</p>
@@ -704,13 +768,14 @@ export class AppBeranda extends LitElement {
           <div class="info-item"><small>NIK</small><strong>${this.revealNik ? pasien.nik : maskNik(pasien.nik)}</strong></div>
           <div class="info-item"><small>Lahir</small><strong>${formatTanggal(pasien.tanggal_lahir)} • ${pasien.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</strong></div>
           <div class="info-item"><small>BPJS</small><strong>${pasien.nomor_bpjs ?? '-'}</strong></div>
-          <div class="info-item"><small>Nomor HP</small><strong>${pasien.no_telepon}</strong></div>
+          <div class="info-item"><small>Nomor WhatsApp</small><strong>${pasien.no_telepon}</strong></div>
           <div class="info-item"><small>Notifikasi</small><strong>Di aplikasi</strong></div>
         </div>
         <p class="hint">${pasien.alamat ?? ''}</p>
         <button class="btn-outline" @click=${() => { this.revealNik = !this.revealNik; }}>
           ${this.revealNik ? 'Sembunyikan NIK' : 'Tampilkan NIK'}
         </button>
+        <p class="hint">Nomor ini yang disebut saat petugas mengirim pemberitahuan QR. Isi pesan tetap masuk di aplikasi, tanpa nama obat. Ubah nomor dari halaman masuk.</p>
         <p class="hint">NIK ditampilkan tertutup di layar. SATUSEHAT: ${pasien.terdaftar_satusehat ? 'riwayat kunjungan ditandai terkirim' : 'belum dikirim'}.</p>
       </div>
       </section>
@@ -801,6 +866,7 @@ export class AppBeranda extends LitElement {
       <section class="block wide">
       <div class="section-title">Data keluhan dan tanda vital<span>${kunjungan.pasienNama}</span></div>
       <div class="card">
+        <div class="allergy-alert">Catatan pendaftaran: ${this.teksAlergi(kunjungan)}</div>
         <div class="info-grid">
           <div class="info-item"><small>Keluhan</small><strong>${periksa.keluhan || '-'}</strong></div>
           <div class="info-item"><small>Tekanan darah</small><strong>${periksa.tekanan_darah || '-'}</strong></div>
@@ -911,7 +977,9 @@ export class AppBeranda extends LitElement {
           id="btn-admin"
           ?disabled=${selesai}
           @click=${() => {
+            const dari = kunjungan.tahap;
             const hasil = mediflow.majuTahap(kunjungan.pendaftaran.id_pendaftaran);
+            if (hasil.ok && dari === 5) this.tampilkanWa(kunjungan.noTelepon);
             this.hasil(hasil.ok, 'Kunjungan berpindah ke langkah berikutnya.', hasil.ok ? '' : hasil.error);
           }}
         >${selesai ? 'Kunjungan selesai' : info.tombol}</button>
@@ -1136,16 +1204,287 @@ export class AppBeranda extends LitElement {
     `;
   }
 
+  private resetObat(): void {
+    this.obatEdit = 0;
+    this.obatKode = '';
+    this.obatNama = '';
+    this.obatStok = '';
+    this.obatHarga = '';
+    this.obatSatuan = 'Tablet';
+    this.obatJenis = 'Jadi';
+    this.obatBpjs = false;
+  }
+
+  private resetJadwal(): void {
+    this.jadwalEdit = 0;
+    this.jadwalHari = 'Senin';
+    this.jadwalMulai = '';
+    this.jadwalSelesai = '';
+    this.jadwalKuota = '';
+  }
+
+  private renderData(role: Role) {
+    if (role === 'dokter') return this.renderDataJadwal();
+    return this.renderDataObat();
+  }
+
+  private renderDataObat() {
+    const satuanPilihan = ['Tablet', 'Kapsul', 'Paket', 'Botol'];
+    const satuan = satuanPilihan.includes(this.obatSatuan) ? satuanPilihan : [this.obatSatuan, ...satuanPilihan];
+    const daftar = mediflow.obatAktif();
+    return html`
+      <section class="block wide">
+        <div class="section-title">
+          Manajemen data obat
+          <span>Tabel obat</span>
+        </div>
+        <div class="card">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Kode Kemenkes</label>
+              <input class="input-field" placeholder="OBT-001" .value=${this.obatKode} @input=${(event: Event) => { this.obatKode = nilai(event); }} />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nama obat</label>
+              <input class="input-field" placeholder="Paracetamol 500mg" .value=${this.obatNama} @input=${(event: Event) => { this.obatNama = nilai(event); }} />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Stok RS</label>
+              <input class="input-field" type="number" min="0" .value=${this.obatStok} @input=${(event: Event) => { this.obatStok = nilai(event); }} />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Harga (Rp)</label>
+              <input class="input-field" type="number" min="0" .value=${this.obatHarga} @input=${(event: Event) => { this.obatHarga = nilai(event); }} />
+            </div>
+          </div>
+          <div class="form-row-3">
+            <div class="form-group">
+              <label class="form-label">Satuan</label>
+              <select class="select-field" .value=${this.obatSatuan} @change=${(event: Event) => { this.obatSatuan = nilai(event); }}>
+                ${satuan.map((item) => html`<option value=${item}>${item}</option>`)}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jenis</label>
+              <select class="select-field" .value=${this.obatJenis} @change=${(event: Event) => { this.obatJenis = nilai(event) as 'Jadi' | 'Racikan'; }}>
+                <option value="Jadi">Jadi</option>
+                <option value="Racikan">Racikan</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">BPJS</label>
+              <label class="check-line">
+                <input type="checkbox" ?checked=${this.obatBpjs} @change=${(event: Event) => { this.obatBpjs = (event.target as HTMLInputElement).checked; }} />
+                Ditanggung
+              </label>
+            </div>
+          </div>
+          <button class="btn-primary" @click=${() => this.simpanMasterObat()}>
+            ${this.obatEdit ? 'Simpan perubahan' : 'Tambah obat baru'}
+          </button>
+          ${this.obatEdit
+            ? html`<button class="btn-outline" @click=${() => this.resetObat()}>Batal edit</button>`
+            : nothing}
+          <p class="hint">Perubahan stok masuk ke jejak mutasi. Menyembunyikan obat tidak menghapus resep lama.</p>
+        </div>
+      </section>
+      <section class="block wide">
+        <div class="card">
+          <div class="table-wrap">
+            <table class="crud-table">
+              <thead>
+                <tr>
+                  <th>Kode</th>
+                  <th>Nama obat</th>
+                  <th>Stok</th>
+                  <th>Harga</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${daftar.map(
+                  (obat) => html`
+                    <tr>
+                      <td>${obat.kode_kemenkes}</td>
+                      <td><strong>${obat.nama_obat}</strong><br /><span class="hint">${obat.satuan} • ${obat.jenis_obat}${obat.cover_bpjs ? ' • BPJS' : ''}</span></td>
+                      <td>${obat.stok_rs}</td>
+                      <td>${formatRp(obat.harga)}</td>
+                      <td class="aksi">
+                        <button class="btn-small" @click=${() => this.isiObat(obat.id_obat)}>Ubah</button>
+                        <button class="btn-small danger" @click=${() => this.sembunyikanObat(obat.id_obat, obat.nama_obat)}>Sembunyi</button>
+                      </td>
+                    </tr>
+                  `
+                )}
+              </tbody>
+            </table>
+          </div>
+          ${daftar.length === 0 ? html`<p class="hint">Belum ada obat aktif.</p>` : nothing}
+        </div>
+      </section>
+    `;
+  }
+
+  private isiObat(id: number): void {
+    const obat = mediflow.obatAktif().find((item) => item.id_obat === id);
+    if (!obat) return;
+    this.obatEdit = obat.id_obat;
+    this.obatKode = obat.kode_kemenkes;
+    this.obatNama = obat.nama_obat;
+    this.obatStok = String(obat.stok_rs);
+    this.obatHarga = String(obat.harga);
+    this.obatSatuan = obat.satuan;
+    this.obatJenis = obat.jenis_obat;
+    this.obatBpjs = obat.cover_bpjs;
+  }
+
+  private simpanMasterObat(): void {
+    const hasil = mediflow.simpanObat({
+      idObat: this.obatEdit || undefined,
+      kode: this.obatKode,
+      nama: this.obatNama,
+      stok: Number(this.obatStok),
+      harga: Number(this.obatHarga),
+      satuan: this.obatSatuan,
+      jenis: this.obatJenis,
+      coverBpjs: this.obatBpjs,
+    });
+    if (!hasil.ok) {
+      this.hasil(false, '', hasil.error);
+      return;
+    }
+    this.resetObat();
+    this.kabar('Data obat tersimpan. Perubahan stok tercatat di jejak.');
+  }
+
+  private sembunyikanObat(id: number, nama: string): void {
+    if (!window.confirm(`Sembunyikan ${nama} dari daftar? Riwayat stok tetap tersimpan.`)) return;
+    const hasil = mediflow.nonaktifkanObat(id);
+    if (this.obatEdit === id) this.resetObat();
+    this.hasil(hasil.ok, `${nama} disembunyikan dari daftar obat.`, hasil.ok ? '' : hasil.error);
+  }
+
+  private renderDataJadwal() {
+    const hari: Hari[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const daftar = mediflow.jadwalSaya();
+    return html`
+      <section class="block wide">
+        <div class="section-title">
+          Jadwal praktik saya
+          <span>Tabel jadwal dokter</span>
+        </div>
+        <div class="card">
+          <div class="form-group">
+            <label class="form-label">Hari praktik</label>
+            <select class="select-field" .value=${this.jadwalHari} @change=${(event: Event) => { this.jadwalHari = nilai(event) as Hari; }}>
+              ${hari.map((item) => html`<option value=${item}>${item}</option>`)}
+            </select>
+          </div>
+          <div class="form-row-3">
+            <div class="form-group">
+              <label class="form-label">Jam mulai</label>
+              <input class="input-field" type="time" .value=${this.jadwalMulai} @input=${(event: Event) => { this.jadwalMulai = nilai(event); }} />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jam selesai</label>
+              <input class="input-field" type="time" .value=${this.jadwalSelesai} @input=${(event: Event) => { this.jadwalSelesai = nilai(event); }} />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kuota</label>
+              <input class="input-field" type="number" min="1" placeholder="20" .value=${this.jadwalKuota} @input=${(event: Event) => { this.jadwalKuota = nilai(event); }} />
+            </div>
+          </div>
+          <button class="btn-primary" @click=${() => this.simpanMasterJadwal()}>
+            ${this.jadwalEdit ? 'Simpan perubahan' : 'Tambah jadwal baru'}
+          </button>
+          ${this.jadwalEdit
+            ? html`<button class="btn-outline" @click=${() => this.resetJadwal()}>Batal edit</button>`
+            : nothing}
+          <p class="hint">Jam yang bertumpuk ditolak. Jadwal yang masih punya antrean hari ini tidak dapat disembunyikan.</p>
+        </div>
+      </section>
+      <section class="block wide">
+        <div class="card">
+          <div class="table-wrap">
+            <table class="crud-table">
+              <thead>
+                <tr>
+                  <th>Hari</th>
+                  <th>Jam</th>
+                  <th>Kuota</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${daftar.map(
+                  (jadwal) => html`
+                    <tr>
+                      <td><strong>${jadwal.hari}</strong></td>
+                      <td>${jamPendek(jadwal.jam_mulai)}–${jamPendek(jadwal.jam_selesai)}</td>
+                      <td>${jadwal.kuota_maksimal}</td>
+                      <td class="aksi">
+                        <button class="btn-small" @click=${() => this.isiJadwal(jadwal.id_jadwal)}>Ubah</button>
+                        <button class="btn-small danger" @click=${() => this.sembunyikanJadwal(jadwal.id_jadwal, jadwal.hari)}>Sembunyi</button>
+                      </td>
+                    </tr>
+                  `
+                )}
+              </tbody>
+            </table>
+          </div>
+          ${daftar.length === 0 ? html`<p class="hint">Belum ada jadwal aktif.</p>` : nothing}
+        </div>
+      </section>
+    `;
+  }
+
+  private isiJadwal(id: number): void {
+    const jadwal = mediflow.jadwalSaya().find((item) => item.id_jadwal === id);
+    if (!jadwal) return;
+    this.jadwalEdit = jadwal.id_jadwal;
+    this.jadwalHari = jadwal.hari;
+    this.jadwalMulai = jamPendek(jadwal.jam_mulai);
+    this.jadwalSelesai = jamPendek(jadwal.jam_selesai);
+    this.jadwalKuota = String(jadwal.kuota_maksimal);
+  }
+
+  private simpanMasterJadwal(): void {
+    const hasil = mediflow.simpanJadwal({
+      idJadwal: this.jadwalEdit || undefined,
+      hari: this.jadwalHari,
+      mulai: this.jadwalMulai,
+      selesai: this.jadwalSelesai,
+      kuota: Number(this.jadwalKuota),
+    });
+    if (!hasil.ok) {
+      this.hasil(false, '', hasil.error);
+      return;
+    }
+    this.resetJadwal();
+    this.kabar('Jadwal praktik tersimpan.');
+  }
+
+  private sembunyikanJadwal(id: number, hari: string): void {
+    if (!window.confirm(`Sembunyikan jadwal ${hari}? Pasien tidak bisa mendaftar pada jam ini lagi.`)) return;
+    const hasil = mediflow.nonaktifkanJadwal(id);
+    if (this.jadwalEdit === id) this.resetJadwal();
+    this.hasil(hasil.ok, `Jadwal ${hari} disembunyikan.`, hasil.ok ? '' : hasil.error);
+  }
+
   private renderNav(role: Role) {
     const utama = role === 'pasien' ? 'Data Saya' : role === 'dokter' ? 'Form Medis' : role === 'farmasi' ? 'Farmasi' : 'Kontrol';
-    const item = (id: 'main' | 'alur' | 'resep', ikon: string, label: string) => html`
-      <button class="nav-item ${this.tab === id ? 'active' : ''}" @click=${() => { this.tab = id; this.tutupPanel(); }}>
+    const aktif = role === 'pasien' && this.tab === 'data' ? 'main' : this.tab;
+    const item = (id: 'main' | 'alur' | 'resep' | 'data', ikon: string, label: string) => html`
+      <button class="nav-item ${aktif === id ? 'active' : ''}" @click=${() => { this.tab = id; this.tutupPanel(); }}>
         <span>${ikon}</span><span>${label}</span>
       </button>
     `;
     return html`
       <nav class="bottom-nav">
         ${item('main', '📝', utama)}
+        ${role === 'pasien' ? nothing : item('data', '🛠️', 'Data')}
         ${item('alur', '📋', 'Alur')}
         ${item('resep', '💊', 'E-Resep')}
       </nav>

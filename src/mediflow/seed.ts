@@ -125,7 +125,7 @@ export function createDatabase(sekarang = new Date()): Database {
         waktu_check_in: checkIn,
         estimasi_jam_masuk: estimasi,
         status_antrean: 'Masuk Ruangan',
-        catatan_pasien: 'Demam naik turun disertai nyeri menelan dan batuk kering.',
+        catatan_pasien: 'Tidak ada alergi obat',
         created_at: daftarPada,
         updated_at: mulai,
       },

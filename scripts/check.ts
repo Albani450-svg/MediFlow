@@ -152,4 +152,74 @@ assert.equal(
   true
 );
 
+mediflow.resetDemo();
+mediflow.logout();
+const nomorSalah = await mediflow.login('budi', 'pasien123', '12345');
+assert.equal(nomorSalah.ok, false);
+pastikan(await mediflow.login('budi', 'pasien123', '081298765432'));
+assert.equal(mediflow.snapshot().pasien.find((row) => row.id_user === 4)?.no_telepon, '081298765432');
+pastikan(mediflow.simpanCatatan(1, 'Alergi penisilin'));
+pastikan(mediflow.simpanKeluhan(1, 'Batuk kering'));
+const catatan = mediflow.kunjunganById(1);
+assert.equal(catatan?.pemeriksaan.keluhan, 'Batuk kering');
+assert.equal(catatan?.pendaftaran.catatan_pasien, 'Alergi penisilin');
+const obatPasien = mediflow.simpanObat({
+  kode: 'OBT-X',
+  nama: 'Vitamin Tes',
+  stok: 3,
+  harga: 1000,
+  satuan: 'Tablet',
+  jenis: 'Jadi',
+  coverBpjs: false,
+});
+assert.equal(obatPasien.ok, false);
+
+mediflow.logout();
+pastikan(await mediflow.login('dokter01', 'dokter123'));
+const idHariIni = mediflow.kunjunganById(1)?.jadwal.id_jadwal ?? 0;
+assert.equal(mediflow.nonaktifkanJadwal(idHariIni).ok, false);
+const idJadwal = pastikan(mediflow.simpanJadwal({ hari: 'Kamis', mulai: '09:00', selesai: '11:00', kuota: 12 }));
+assert.equal(mediflow.snapshot().jadwal_dokter.find((row) => row.id_jadwal === idJadwal)?.kuota_maksimal, 12);
+assert.equal(mediflow.simpanJadwal({ hari: 'Senin', mulai: '09:00', selesai: '10:00', kuota: 10 }).ok, false);
+pastikan(mediflow.nonaktifkanJadwal(idJadwal));
+assert.equal(mediflow.jadwalSaya().some((row) => row.id_jadwal === idJadwal), false);
+
+mediflow.logout();
+pastikan(await mediflow.login('admin', 'admin123'));
+assert.equal(mediflow.simpanJadwal({ hari: 'Jumat', mulai: '08:00', selesai: '10:00', kuota: 5 }).ok, false);
+
+mediflow.logout();
+pastikan(await mediflow.login('farmasi01', 'apotek123'));
+const idObat = pastikan(
+  mediflow.simpanObat({
+    kode: 'OBT-TEST',
+    nama: 'Vitamin Tes',
+    stok: 5,
+    harga: 2000,
+    satuan: 'Tablet',
+    jenis: 'Jadi',
+    coverBpjs: true,
+  })
+);
+assert.equal(
+  mediflow.snapshot().mutasi_stok.some((row) => row.id_obat === idObat && row.jenis_mutasi === 'Masuk' && row.stok_sesudah === 5),
+  true
+);
+assert.equal(mediflow.simpanObat({
+  kode: 'OBT001',
+  nama: 'Kode bentrok',
+  stok: 1,
+  harga: 1,
+  satuan: 'Tablet',
+  jenis: 'Jadi',
+  coverBpjs: false,
+}).ok, false);
+pastikan(mediflow.nonaktifkanObat(idObat));
+assert.equal(mediflow.obatAktif().some((row) => row.id_obat === idObat), false);
+assert.equal(mediflow.snapshot().notifikasi.every((item) => item.channel === 'PWA'), true);
+assert.equal(/whatsapp/i.test(mediflow.snapshot().notifikasi.map((item) => item.pesan).join('\n')), false);
+
+mediflow.resetDemo();
+mediflow.logout();
+
 console.log('alur-ok');

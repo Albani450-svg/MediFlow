@@ -60,6 +60,7 @@ export class AppLogin extends LitElement {
 
   @state() private peran: Role = 'pasien';
   @state() private password = AKUN[0].password;
+  @state() private wa = '';
   @state() private error = '';
   @state() private loading = false;
   @state() private sumber: 'mysql' | 'peramban' | 'memuat' = 'memuat';
@@ -69,6 +70,7 @@ export class AppLogin extends LitElement {
     void mediflow.siap.then(() => {
       if (!this.isConnected) return;
       this.sumber = mediflow.sumber();
+      this.wa = mediflow.nomorAkun(this.akun().username);
       if (mediflow.session()) go('/app');
     });
   }
@@ -81,13 +83,20 @@ export class AppLogin extends LitElement {
     const akun = AKUN.find((item) => item.role === role) ?? AKUN[0];
     this.peran = role;
     this.password = akun.password;
+    this.wa = mediflow.nomorAkun(akun.username);
     this.error = '';
   }
 
   private async masuk(): Promise<void> {
     this.loading = true;
     this.error = '';
-    const hasil = await mediflow.login(this.akun().username, this.password);
+    await mediflow.siap;
+    if (this.peran === 'pasien' && !this.wa.trim()) this.wa = mediflow.nomorAkun(this.akun().username);
+    const hasil = await mediflow.login(
+      this.akun().username,
+      this.password,
+      this.peran === 'pasien' ? this.wa : undefined
+    );
     this.loading = false;
     if (!hasil.ok) {
       this.error = hasil.error;
@@ -144,6 +153,23 @@ export class AppLogin extends LitElement {
                 }}
               />
             </div>
+            ${this.peran === 'pasien'
+              ? html`
+                  <div class="form-group span-login">
+                    <label class="form-label">Nomor WhatsApp (pemberitahuan QR)</label>
+                    <input
+                      class="input-field"
+                      type="tel"
+                      inputmode="numeric"
+                      placeholder="Mulai dengan 08"
+                      .value=${this.wa}
+                      @input=${(event: Event) => {
+                        this.wa = (event.target as HTMLInputElement).value;
+                      }}
+                    />
+                  </div>
+                `
+              : ''}
             ${this.error ? html`<p class="notice error">${this.error}</p>` : ''}
             <button class="btn-primary" id="btn-login" ?disabled=${this.loading} @click=${() => this.masuk()}>
               ${this.loading ? 'Memeriksa...' : 'Masuk ke Sistem →'}

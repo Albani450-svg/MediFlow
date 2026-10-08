@@ -161,6 +161,24 @@ export const mediflowStyles = css`
   .toast h4 { margin: 0; font-size: 13px; }
   .toast p { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.4; }
   .toast button { background: transparent; border: none; color: var(--text-muted); font-size: 16px; font-weight: 800; cursor: pointer; padding: 0 2px; }
+  .wa-toast {
+    position: fixed; z-index: 80; top: 16px; left: 50%; transform: translateX(-50%);
+    width: min(360px, calc(100% - 24px)); background: #fff; border: 1px solid #25D366; border-left: 6px solid #25D366;
+    box-shadow: 0 10px 25px rgba(37, 211, 102, 0.2); padding: 12px 16px; border-radius: 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .wa-icon {
+    width: 34px; height: 34px; border-radius: 50%; background: #25D366; color: #fff; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+  }
+  .wa-toast h4 { margin: 0 0 2px; font-size: 12px; font-weight: 800; }
+  .wa-toast p { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-muted); line-height: 1.35; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
+  .crud-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 520px; }
+  .crud-table th, .crud-table td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+  .crud-table th { background: #f8fafc; font-weight: 800; color: var(--text-muted); text-transform: uppercase; font-size: 10px; }
+  .crud-table td.aksi { text-align: right; white-space: nowrap; }
+  .check-line { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; margin-top: 8px; }
   .queue-banner {
     background: #fff; color: var(--text-main); border-radius: 16px; padding: 12px 14px;
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -282,8 +300,8 @@ export const mediflowStyles = css`
   }
   .nav-item {
     display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-muted);
-    font-size: 10px; font-weight: 700; cursor: pointer; padding: 4px 14px; border-radius: 10px;
-    background: transparent; border: none;
+    font-size: 10px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 10px;
+    background: transparent; border: none; flex: 1; min-width: 0;
   }
   .nav-item.active { color: var(--primary); background: var(--primary-soft); }
 
@@ -340,7 +358,8 @@ export const mediflowStyles = css`
     .login-card > .sub,
     .login-card > .notice,
     .login-card > .btn-primary,
-    .login-card > .hint { grid-column: 1 / -1; }
+    .login-card > .hint,
+    .login-card > .span-login { grid-column: 1 / -1; }
     .login-card > .role-option,
     .login-card > .form-group { margin-bottom: 0; }
     .login-card > .btn-primary { width: min(420px, 100%); justify-self: center; }
@@ -397,6 +416,7 @@ export const mediflowStyles = css`
       border-radius: 18px 18px 0 0;
     }
     .nav-item {
+      flex: 0 0 auto;
       flex-direction: row;
       gap: 8px;
       font-size: 13px;
