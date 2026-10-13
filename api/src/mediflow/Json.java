@@ -12,7 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** JSON ringkas. Angka utuh tidak ditulis dengan ".0", sama seperti json_encode PHP. */
+/** JSON ringkas. Angka utuh tidak ditulis dengan ".0". */
 final class Json {
     static final ObjectMapper MAPPER = new ObjectMapper();
 

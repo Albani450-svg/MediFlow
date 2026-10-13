@@ -2,9 +2,8 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { API_PORT, pastikanApi } from './scripts/start-api.mjs';
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  base: "/",
+  base: '/',
   server: {
     proxy: {
       '/api': {
@@ -15,10 +14,10 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    assetsDir: "code",
-    target: ["esnext"],
+    assetsDir: 'code',
+    target: ['esnext'],
     cssMinify: true,
-    lib: false
+    lib: false,
   },
   plugins: [
     {
@@ -29,20 +28,18 @@ export default defineConfig({
       },
     },
     VitePWA({
-      strategies: "injectManifest",
+      strategies: 'injectManifest',
       injectManifest: {
         swSrc: 'public/sw.js',
         swDest: 'dist/sw.js',
         globDirectory: 'dist',
-        globPatterns: [
-          '**/*.{html,js,css,json,png}',
-        ],
+        globPatterns: ['**/*.{html,js,css,json,png}'],
       },
       injectRegister: false,
       manifest: false,
       devOptions: {
-        enabled: true
-      }
-    })
-  ]
-})
+        enabled: true,
+      },
+    }),
+  ],
+});

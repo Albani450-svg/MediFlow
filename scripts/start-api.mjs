@@ -48,10 +48,11 @@ function susun() {
   }
   mkdirSync(outDir, { recursive: true });
   const cp = path.join(libDir, '*');
-  const hasil = spawnSync(berkasJava('javac'), ['--release', '17', '-encoding', 'UTF-8', '-cp', cp, '-d', outDir, ...sumber(srcDir)], {
-    cwd: apiDir,
-    stdio: 'inherit',
-  });
+  const hasil = spawnSync(
+    berkasJava('javac'),
+    ['--release', '17', '-encoding', 'UTF-8', '-cp', cp, '-d', outDir, ...sumber(srcDir)],
+    { cwd: apiDir, stdio: 'inherit' }
+  );
   if (hasil.error) {
     console.warn('[mediflow] Java tidak ditemukan. Pasang JDK 17 atau lebih baru, atau set JAVA_HOME.');
     return false;

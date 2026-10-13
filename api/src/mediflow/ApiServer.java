@@ -16,7 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
-/** API MediFlow di 127.0.0.1:8088. Jalur dan bentuk JSON sama dengan API PHP sebelumnya. */
+/** API MediFlow di 127.0.0.1:8088. */
 public final class ApiServer {
     private static final int BATAS_BODY = 20_000_000;
 
@@ -122,7 +122,8 @@ public final class ApiServer {
         }
     }
 
-    private static Resource.Jawaban layani(Connection db, Catalog.Table tabel, String metode, Long id, HttpExchange tukar) throws Exception {
+    private static Resource.Jawaban layani(
+            Connection db, Catalog.Table tabel, String metode, Long id, HttpExchange tukar) throws Exception {
         if (id == null && "GET".equals(metode)) {
             return Resource.daftar(db, tabel, kueri(tukar.getRequestURI().getRawQuery()));
         }

@@ -5,7 +5,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/** Koneksi medicflow_db. Variabel lingkungan sama dengan API PHP. */
+/** Koneksi medicflow_db. Variabel lingkungan: MEDIFLOW_DB_HOST, USER, PASSWORD, NAME, PORT. */
 final class Db {
     private Db() {}
 

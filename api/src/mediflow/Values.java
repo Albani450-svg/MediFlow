@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Konversi nilai yang dipakai snapshot dan CRUD, mengikuti API PHP sebelumnya. */
+/** Konversi nilai yang dipakai snapshot dan CRUD. */
 final class Values {
     private static final Pattern AWALAN_ANGKA = Pattern.compile("^[+-]?\\d+");
     private static final DateTimeFormatter UTC =
@@ -244,7 +244,8 @@ final class Values {
         }
         if (nilai instanceof Double || nilai instanceof Float) {
             double angka = ((Number) nilai).doubleValue();
-            if (!Double.isNaN(angka) && !Double.isInfinite(angka) && angka == Math.rint(angka) && Math.abs(angka) < 1e15) {
+            if (!Double.isNaN(angka) && !Double.isInfinite(angka) && angka == Math.rint(angka)
+                    && Math.abs(angka) < 1e15) {
                 return Long.toString((long) angka);
             }
             return Double.toString(angka);

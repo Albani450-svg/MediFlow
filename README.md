@@ -118,7 +118,6 @@ MediFlow/
     schema.sql               skema medicflow_db
     sesuaikan-pwa.sql        akun demo setelah impor dump
   api/                       API Java di port 8088
-  backend/                   API CodeIgniter sebelumnya, tidak dijalankan
 ```
 
 Kode domain ada di `src/mediflow/`:

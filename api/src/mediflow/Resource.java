@@ -211,7 +211,8 @@ final class Resource {
         return cek;
     }
 
-    private static Map<String, String> validasi(Connection db, Catalog.Table tabel, Map<String, Object> data, Long id) throws SQLException {
+    private static Map<String, String> validasi(
+            Connection db, Catalog.Table tabel, Map<String, Object> data, Long id) throws SQLException {
         Map<String, String> galat = new LinkedHashMap<>();
         boolean pembaruan = id != null;
         for (Catalog.Field bidang : tabel.fields()) {
@@ -369,7 +370,9 @@ final class Resource {
         return hasil;
     }
 
-    private static String periksa(Connection db, Catalog.Table tabel, Map<String, Object> data, Map<String, Object> sebelum, Long id) throws SQLException {
+    private static String periksa(
+            Connection db, Catalog.Table tabel, Map<String, Object> data, Map<String, Object> sebelum, Long id)
+            throws SQLException {
         return switch (tabel.check() == null ? "" : tabel.check()) {
             case "jadwal" -> periksaJadwal(db, data, sebelum, id);
             case "pendaftaran" -> periksaPendaftaran(db, data, sebelum, id);
@@ -378,7 +381,8 @@ final class Resource {
         };
     }
 
-    private static String periksaJadwal(Connection db, Map<String, Object> data, Map<String, Object> sebelum, Long id) throws SQLException {
+    private static String periksaJadwal(
+            Connection db, Map<String, Object> data, Map<String, Object> sebelum, Long id) throws SQLException {
         Object mulai = nilai(data, sebelum, "jam_mulai");
         Object selesai = nilai(data, sebelum, "jam_selesai");
         Object hari = nilai(data, sebelum, "hari");
@@ -386,11 +390,16 @@ final class Resource {
         boolean aktif = data.containsKey("is_active")
                 ? Values.nyala(data.get("is_active"))
                 : sebelum.isEmpty() || Values.nyala(sebelum.containsKey("is_active") ? sebelum.get("is_active") : 1);
-        if (mulai instanceof String jamMulai && selesai instanceof String jamSelesai && Values.menit(jamMulai) >= Values.menit(jamSelesai)) {
+        if (mulai instanceof String jamMulai && selesai instanceof String jamSelesai
+                && Values.menit(jamMulai) >= Values.menit(jamSelesai)) {
             return "Jam selesai harus setelah jam mulai.";
         }
-        if (aktif && Values.ada(dokter) && Values.ada(hari) && mulai instanceof String jamMulai && selesai instanceof String jamSelesai) {
-            String sql = "SELECT id_jadwal, jam_mulai, jam_selesai FROM jadwal_dokter WHERE id_dokter = ? AND hari = ? AND is_active = 1";
+        if (aktif && Values.ada(dokter) && Values.ada(hari)
+                && mulai instanceof String jamMulai && selesai instanceof String jamSelesai) {
+            String sql = """
+                    SELECT id_jadwal, jam_mulai, jam_selesai FROM jadwal_dokter
+                    WHERE id_dokter = ? AND hari = ? AND is_active = 1
+                    """;
             try (PreparedStatement ps = db.prepareStatement(sql)) {
                 ps.setLong(1, Values.keLong(dokter));
                 ps.setString(2, String.valueOf(hari));
@@ -425,7 +434,8 @@ final class Resource {
         return null;
     }
 
-    private static String periksaPendaftaran(Connection db, Map<String, Object> data, Map<String, Object> sebelum, Long id) throws SQLException {
+    private static String periksaPendaftaran(
+            Connection db, Map<String, Object> data, Map<String, Object> sebelum, Long id) throws SQLException {
         Object pasien = nilai(data, sebelum, "id_pasien");
         Object jadwal = nilai(data, sebelum, "id_jadwal");
         Object tanggal = nilai(data, sebelum, "tanggal_kunjungan");
@@ -444,7 +454,8 @@ final class Resource {
                 return "Nomor antrean sudah dipakai pada jadwal ini.";
             }
         }
-        if (!"Batal".equals(String.valueOf(status)) && Values.ada(pasien) && Values.ada(jadwal) && Values.ada(tanggal)) {
+        if (!"Batal".equals(String.valueOf(status))
+                && Values.ada(pasien) && Values.ada(jadwal) && Values.ada(tanggal)) {
             long ganda = hitung(db, """
                     SELECT COUNT(*) FROM pendaftaran_poli
                     WHERE id_pasien = ? AND id_jadwal = ? AND tanggal_kunjungan = ? AND status_antrean <> 'Batal'
@@ -457,7 +468,8 @@ final class Resource {
         return null;
     }
 
-    private static String periksaNotifikasi(Connection db, Map<String, Object> data, Map<String, Object> sebelum) throws SQLException {
+    private static String periksaNotifikasi(
+            Connection db, Map<String, Object> data, Map<String, Object> sebelum) throws SQLException {
         Object mentah = nilai(data, sebelum, "pesan");
         String pesan = mentah == null ? "" : String.valueOf(mentah).trim();
         if (pesan.isEmpty()) {
@@ -576,7 +588,8 @@ final class Resource {
         throw new SQLException("Id baru tidak kembali dari database.");
     }
 
-    private static void perbarui(Connection db, Catalog.Table tabel, long id, Map<String, Object> data) throws SQLException {
+    private static void perbarui(Connection db, Catalog.Table tabel, long id, Map<String, Object> data)
+            throws SQLException {
         List<String> kolom = new ArrayList<>(data.keySet());
         StringBuilder sql = new StringBuilder("UPDATE ").append(Snapshot.kutip(tabel.name())).append(" SET ");
         for (int i = 0; i < kolom.size(); i++) {
@@ -595,7 +608,8 @@ final class Resource {
         }
     }
 
-    private static void ikatKolom(PreparedStatement ps, int indeks, Object nilai, Catalog.Col kolom) throws SQLException {
+    private static void ikatKolom(PreparedStatement ps, int indeks, Object nilai, Catalog.Col kolom)
+            throws SQLException {
         if (nilai == null || kolom == null) {
             ps.setNull(indeks, Types.VARCHAR);
             return;
@@ -632,7 +646,8 @@ final class Resource {
         if (vendor == 1062 || pesan.contains("1062") || pesan.contains("Duplicate")) {
             kode = 409;
             aksi = "Data " + tabel.label() + " sudah ada.";
-        } else if (vendor == 1451 || vendor == 1452 || pesan.contains("1451") || pesan.contains("1452") || rendah.contains("foreign key")) {
+        } else if (vendor == 1451 || vendor == 1452 || pesan.contains("1451") || pesan.contains("1452")
+                || rendah.contains("foreign key")) {
             kode = 409;
             aksi = "Data " + tabel.label() + " masih terhubung ke catatan lain.";
         }
