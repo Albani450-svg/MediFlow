@@ -1,9 +1,7 @@
 {
   "files.trimTrailingWhitespace": true,
   "files.eol": "\n",
-  "java.project.sourcePaths": ["api/src"],
-  "java.project.outputPath": "api/out",
-  "java.project.referencedLibraries": ["api/lib/**/*.jar"],
+  "java.project.resourceFilters": ["node_modules", ".git", "api/out"],
   "markdownlint.config": {
     "MD028": false,
     "MD025": {
