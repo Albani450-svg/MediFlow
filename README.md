@@ -38,7 +38,7 @@ Memilih apotek luar pada langkah 6 menutup kunjungan tanpa mengurangi stok rumah
 
 ## Menjalankan di komputer ini
 
-Perlu Node.js, PHP 8.1 atau lebih baru (ekstensi `intl`, dipakai CodeIgniter), Composer, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP. PHP dicari di `C:\xampp\php\php.exe`, lalu `D:\xampp\php\php.exe`. Lokasi lain diatur lewat variabel lingkungan `PHP_BIN`.
+Perlu Node.js, JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP untuk MySQL. `java` harus ada di PATH, atau tunjuk folder JDK lewat `JAVA_HOME`.
 
 ```powershell
 # 1. Buat database medicflow_db, lalu impor skema dan penyesuaian demo.
@@ -46,15 +46,14 @@ Perlu Node.js, PHP 8.1 atau lebih baru (ekstensi `intl`, dipakai CodeIgniter), C
 #    mysql -u root < db/schema.sql
 #    mysql -u root medicflow_db < db/sesuaikan-pwa.sql
 
-# 2. Pasang dependensi. Ulangi composer install jika folder backend/vendor belum ada.
+# 2. Pasang dependensi peramban. API Java memakai jar di api/lib, tanpa Maven.
 npm install
-composer install --working-dir=backend
 
 # 3. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
 #    Perintah ini mengganti isi tabel medicflow_db.
 npm run dummy
 
-# 4. Buka aplikasi. Vite juga menyalakan API bila port 8088 masih kosong.
+# 4. Buka aplikasi. Vite juga menyalakan API Java bila port 8088 masih kosong.
 npm run dev
 ```
 
@@ -63,7 +62,7 @@ npm run dev
 - Hanya API: `npm run api`
 - Komputer lain di jaringan yang sama: `npm run start-remote`, lalu buka alamat LAN yang dicetak Vite
 
-Koneksi MySQL ada di `backend/app/Config/Database.php`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
+Koneksi MySQL ada di `api/src/mediflow/Db.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
 
 `db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `npm run dummy` mengisi data uji dari `src/mediflow/seed.ts` dan mengganti isi tabel.
 
@@ -89,8 +88,8 @@ Jika API atau MySQL mati, aplikasi memakai salinan di `localStorage` dengan kunc
 
 | Perintah | Fungsi |
 | --- | --- |
-| `npm run dev` | Vite dengan peramban terbuka, plus API CodeIgniter |
-| `npm run api` | Hanya API di port 8088 |
+| `npm run dev` | Vite dengan peramban terbuka, plus API Java |
+| `npm run api` | Hanya API Java di port 8088 |
 | `npm run start-remote` | Vite yang menerima koneksi dari jaringan lokal |
 | `npm run build` | Pemeriksaan TypeScript, lalu hasil produksi di `dist/` |
 | `npm run check` | Pemeriksaan alur: jadwal ganda, stok habis, kode QR yang dipakai ulang, dan catatan stok |
@@ -113,12 +112,13 @@ MediFlow/
     styles/                  global.css dan gaya komponen
     mediflow/                tipe, aturan, simpanan, dan teks antarmuka
   scripts/
-    start-api.mjs            menjalankan PHP bila port 8088 kosong
+    start-api.mjs            menyusun dan menjalankan API Java bila port 8088 kosong
     run-check.mjs            menjalankan scripts/check.ts lewat Vite
   db/
     schema.sql               skema medicflow_db
     sesuaikan-pwa.sql        akun demo setelah impor dump
-  backend/                   API CodeIgniter 4
+  api/                       API Java di port 8088
+  backend/                   API CodeIgniter sebelumnya, tidak dijalankan
 ```
 
 Kode domain ada di `src/mediflow/`:
@@ -135,7 +135,7 @@ Kode domain ada di `src/mediflow/`:
 | `notify.ts` | Izin dan notifikasi perangkat |
 | `format.ts` | Tanggal, jam, dan rupiah |
 
-API kustom CodeIgniter ada di `backend/app/Controllers/Api/`. PWA tetap memakai `GET` dan `PUT /api/database`. Selain itu setiap tabel punya CRUD:
+API Java ada di `api/src/mediflow/`. PWA tetap memakai `GET` dan `PUT /api/database`. Selain itu setiap tabel punya CRUD:
 
 | Metode | Jalur |
 | --- | --- |
