@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Salinan tabel medicflow_db yang diubah aplikasi. */
-final class Basis {
+final class DatabaseRecords {
     final List<Pengguna> users = new ArrayList<>();
     final List<Pasien> pasien = new ArrayList<>();
     final List<Dokter> dokter = new ArrayList<>();
@@ -23,8 +23,8 @@ final class Basis {
     final List<Mutasi> mutasi_stok = new ArrayList<>();
     final List<Jejak> log_aktivitas = new ArrayList<>();
 
-    static Basis dari(Map<String, List<Map<String, Object>>> data) {
-        Basis basis = new Basis();
+    static DatabaseRecords dari(Map<String, List<Map<String, Object>>> data) {
+        DatabaseRecords basis = new DatabaseRecords();
         for (Map<String, Object> baris : daftar(data, "users")) {
             basis.users.add(Pengguna.dari(baris));
         }
@@ -181,21 +181,21 @@ final class Pengguna implements Baris {
 
     static Pengguna dari(Map<String, Object> baris) {
         Pengguna item = new Pengguna();
-        item.id_user = Basis.lng(baris.get("id_user"));
-        item.username = Basis.str(baris.get("username"));
-        item.password_hash = Basis.str(baris.get("password_hash"));
-        item.role = Basis.str(baris.get("role"));
-        item.nama_lengkap = Basis.str(baris.get("nama_lengkap"));
-        item.no_telepon = Basis.str(baris.get("no_telepon"));
-        item.is_active = Basis.bool(baris.get("is_active"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_user = DatabaseRecords.lng(baris.get("id_user"));
+        item.username = DatabaseRecords.str(baris.get("username"));
+        item.password_hash = DatabaseRecords.str(baris.get("password_hash"));
+        item.role = DatabaseRecords.str(baris.get("role"));
+        item.nama_lengkap = DatabaseRecords.str(baris.get("nama_lengkap"));
+        item.no_telepon = DatabaseRecords.str(baris.get("no_telepon"));
+        item.is_active = DatabaseRecords.bool(baris.get("is_active"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_user", id_user);
         baris.put("username", username);
         baris.put("password_hash", password_hash);
@@ -225,24 +225,24 @@ final class Pasien implements Baris {
 
     static Pasien dari(Map<String, Object> baris) {
         Pasien item = new Pasien();
-        item.id_pasien = Basis.lng(baris.get("id_pasien"));
-        item.id_user = Basis.lng(baris.get("id_user"));
-        item.nik = Basis.str(baris.get("nik"));
-        item.nomor_bpjs = Basis.str(baris.get("nomor_bpjs"));
-        item.nama_lengkap = Basis.str(baris.get("nama_lengkap"));
-        item.tanggal_lahir = Basis.str(baris.get("tanggal_lahir"));
-        item.jenis_kelamin = Basis.str(baris.get("jenis_kelamin"));
-        item.alamat = Basis.str(baris.get("alamat"));
-        item.no_telepon = Basis.str(baris.get("no_telepon"));
-        item.terdaftar_satusehat = Basis.bool(baris.get("terdaftar_satusehat"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_pasien = DatabaseRecords.lng(baris.get("id_pasien"));
+        item.id_user = DatabaseRecords.lng(baris.get("id_user"));
+        item.nik = DatabaseRecords.str(baris.get("nik"));
+        item.nomor_bpjs = DatabaseRecords.str(baris.get("nomor_bpjs"));
+        item.nama_lengkap = DatabaseRecords.str(baris.get("nama_lengkap"));
+        item.tanggal_lahir = DatabaseRecords.str(baris.get("tanggal_lahir"));
+        item.jenis_kelamin = DatabaseRecords.str(baris.get("jenis_kelamin"));
+        item.alamat = DatabaseRecords.str(baris.get("alamat"));
+        item.no_telepon = DatabaseRecords.str(baris.get("no_telepon"));
+        item.terdaftar_satusehat = DatabaseRecords.bool(baris.get("terdaftar_satusehat"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_pasien", id_pasien);
         baris.put("id_user", id_user);
         baris.put("nik", nik);
@@ -272,21 +272,21 @@ final class Dokter implements Baris {
 
     static Dokter dari(Map<String, Object> baris) {
         Dokter item = new Dokter();
-        item.id_dokter = Basis.lng(baris.get("id_dokter"));
-        item.id_user = Basis.lng(baris.get("id_user"));
-        item.id_poli = Basis.lng(baris.get("id_poli"));
-        item.nama_dokter = Basis.str(baris.get("nama_dokter"));
-        item.spesialisasi = Basis.str(baris.get("spesialisasi"));
-        item.rata_waktu_periksa_menit = (int) Basis.lng(baris.get("rata_waktu_periksa_menit"));
-        item.is_active = Basis.bool(baris.get("is_active"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_dokter = DatabaseRecords.lng(baris.get("id_dokter"));
+        item.id_user = DatabaseRecords.lng(baris.get("id_user"));
+        item.id_poli = DatabaseRecords.lng(baris.get("id_poli"));
+        item.nama_dokter = DatabaseRecords.str(baris.get("nama_dokter"));
+        item.spesialisasi = DatabaseRecords.str(baris.get("spesialisasi"));
+        item.rata_waktu_periksa_menit = (int) DatabaseRecords.lng(baris.get("rata_waktu_periksa_menit"));
+        item.is_active = DatabaseRecords.bool(baris.get("is_active"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_dokter", id_dokter);
         baris.put("id_user", id_user);
         baris.put("id_poli", id_poli);
@@ -310,18 +310,18 @@ final class Poli implements Baris {
 
     static Poli dari(Map<String, Object> baris) {
         Poli item = new Poli();
-        item.id_poli = Basis.lng(baris.get("id_poli"));
-        item.nama_poli = Basis.str(baris.get("nama_poli"));
-        item.deskripsi = Basis.str(baris.get("deskripsi"));
-        item.is_active = Basis.bool(baris.get("is_active"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_poli = DatabaseRecords.lng(baris.get("id_poli"));
+        item.nama_poli = DatabaseRecords.str(baris.get("nama_poli"));
+        item.deskripsi = DatabaseRecords.str(baris.get("deskripsi"));
+        item.is_active = DatabaseRecords.bool(baris.get("is_active"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_poli", id_poli);
         baris.put("nama_poli", nama_poli);
         baris.put("deskripsi", deskripsi);
@@ -345,21 +345,21 @@ final class Jadwal implements Baris {
 
     static Jadwal dari(Map<String, Object> baris) {
         Jadwal item = new Jadwal();
-        item.id_jadwal = Basis.lng(baris.get("id_jadwal"));
-        item.id_dokter = Basis.lng(baris.get("id_dokter"));
-        item.hari = Basis.str(baris.get("hari"));
-        item.jam_mulai = Basis.str(baris.get("jam_mulai"));
-        item.jam_selesai = Basis.str(baris.get("jam_selesai"));
-        item.kuota_maksimal = (int) Basis.lng(baris.get("kuota_maksimal"));
-        item.is_active = Basis.bool(baris.get("is_active"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_jadwal = DatabaseRecords.lng(baris.get("id_jadwal"));
+        item.id_dokter = DatabaseRecords.lng(baris.get("id_dokter"));
+        item.hari = DatabaseRecords.str(baris.get("hari"));
+        item.jam_mulai = DatabaseRecords.str(baris.get("jam_mulai"));
+        item.jam_selesai = DatabaseRecords.str(baris.get("jam_selesai"));
+        item.kuota_maksimal = (int) DatabaseRecords.lng(baris.get("kuota_maksimal"));
+        item.is_active = DatabaseRecords.bool(baris.get("is_active"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_jadwal", id_jadwal);
         baris.put("id_dokter", id_dokter);
         baris.put("hari", hari);
@@ -389,24 +389,24 @@ final class Obat implements Baris {
 
     static Obat dari(Map<String, Object> baris) {
         Obat item = new Obat();
-        item.id_obat = Basis.lng(baris.get("id_obat"));
-        item.kode_kemenkes = Basis.str(baris.get("kode_kemenkes"));
-        item.nama_obat = Basis.str(baris.get("nama_obat"));
-        item.jenis_obat = Basis.str(baris.get("jenis_obat"));
-        item.satuan = Basis.str(baris.get("satuan"));
-        item.cover_bpjs = Basis.bool(baris.get("cover_bpjs"));
-        item.stok_rs = (int) Basis.lng(baris.get("stok_rs"));
-        item.stok_minimum = (int) Basis.lng(baris.get("stok_minimum"));
-        item.harga = Basis.dbl(baris.get("harga"));
-        item.is_active = Basis.bool(baris.get("is_active"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_obat = DatabaseRecords.lng(baris.get("id_obat"));
+        item.kode_kemenkes = DatabaseRecords.str(baris.get("kode_kemenkes"));
+        item.nama_obat = DatabaseRecords.str(baris.get("nama_obat"));
+        item.jenis_obat = DatabaseRecords.str(baris.get("jenis_obat"));
+        item.satuan = DatabaseRecords.str(baris.get("satuan"));
+        item.cover_bpjs = DatabaseRecords.bool(baris.get("cover_bpjs"));
+        item.stok_rs = (int) DatabaseRecords.lng(baris.get("stok_rs"));
+        item.stok_minimum = (int) DatabaseRecords.lng(baris.get("stok_minimum"));
+        item.harga = DatabaseRecords.dbl(baris.get("harga"));
+        item.is_active = DatabaseRecords.bool(baris.get("is_active"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_obat", id_obat);
         baris.put("kode_kemenkes", kode_kemenkes);
         baris.put("nama_obat", nama_obat);
@@ -438,23 +438,23 @@ final class Daftar implements Baris {
 
     static Daftar dari(Map<String, Object> baris) {
         Daftar item = new Daftar();
-        item.id_pendaftaran = Basis.lng(baris.get("id_pendaftaran"));
-        item.id_pasien = Basis.lng(baris.get("id_pasien"));
-        item.id_jadwal = Basis.lng(baris.get("id_jadwal"));
-        item.tanggal_kunjungan = Basis.str(baris.get("tanggal_kunjungan"));
-        item.nomor_antrean = (int) Basis.lng(baris.get("nomor_antrean"));
-        item.waktu_check_in = Basis.str(baris.get("waktu_check_in"));
-        item.estimasi_jam_masuk = Basis.str(baris.get("estimasi_jam_masuk"));
-        item.status_antrean = Basis.str(baris.get("status_antrean"));
-        item.catatan_pasien = Basis.str(baris.get("catatan_pasien"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_pendaftaran = DatabaseRecords.lng(baris.get("id_pendaftaran"));
+        item.id_pasien = DatabaseRecords.lng(baris.get("id_pasien"));
+        item.id_jadwal = DatabaseRecords.lng(baris.get("id_jadwal"));
+        item.tanggal_kunjungan = DatabaseRecords.str(baris.get("tanggal_kunjungan"));
+        item.nomor_antrean = (int) DatabaseRecords.lng(baris.get("nomor_antrean"));
+        item.waktu_check_in = DatabaseRecords.str(baris.get("waktu_check_in"));
+        item.estimasi_jam_masuk = DatabaseRecords.str(baris.get("estimasi_jam_masuk"));
+        item.status_antrean = DatabaseRecords.str(baris.get("status_antrean"));
+        item.catatan_pasien = DatabaseRecords.str(baris.get("catatan_pasien"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_pendaftaran", id_pendaftaran);
         baris.put("id_pasien", id_pasien);
         baris.put("id_jadwal", id_jadwal);
@@ -489,21 +489,21 @@ final class Periksa implements Baris {
 
     static Periksa dari(Map<String, Object> baris) {
         Periksa item = new Periksa();
-        item.id_pemeriksaan = Basis.lng(baris.get("id_pemeriksaan"));
-        item.id_pendaftaran = Basis.lng(baris.get("id_pendaftaran"));
-        item.id_dokter = Basis.lng(baris.get("id_dokter"));
-        item.keluhan = Basis.str(baris.get("keluhan"));
-        item.tekanan_darah = Basis.str(baris.get("tekanan_darah"));
-        item.suhu_tubuh = Basis.dblOrNull(baris.get("suhu_tubuh"));
-        item.berat_badan = Basis.dblOrNull(baris.get("berat_badan"));
-        item.tinggi_badan = Basis.dblOrNull(baris.get("tinggi_badan"));
+        item.id_pemeriksaan = DatabaseRecords.lng(baris.get("id_pemeriksaan"));
+        item.id_pendaftaran = DatabaseRecords.lng(baris.get("id_pendaftaran"));
+        item.id_dokter = DatabaseRecords.lng(baris.get("id_dokter"));
+        item.keluhan = DatabaseRecords.str(baris.get("keluhan"));
+        item.tekanan_darah = DatabaseRecords.str(baris.get("tekanan_darah"));
+        item.suhu_tubuh = DatabaseRecords.dblOrNull(baris.get("suhu_tubuh"));
+        item.berat_badan = DatabaseRecords.dblOrNull(baris.get("berat_badan"));
+        item.tinggi_badan = DatabaseRecords.dblOrNull(baris.get("tinggi_badan"));
         item.diagnosis = teks(baris.get("diagnosis"));
         item.tindakan = teks(baris.get("tindakan"));
-        item.catatan_dokter = Basis.str(baris.get("catatan_dokter"));
-        item.waktu_mulai = Basis.str(baris.get("waktu_mulai"));
-        item.waktu_selesai = Basis.str(baris.get("waktu_selesai"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.catatan_dokter = DatabaseRecords.str(baris.get("catatan_dokter"));
+        item.waktu_mulai = DatabaseRecords.str(baris.get("waktu_mulai"));
+        item.waktu_selesai = DatabaseRecords.str(baris.get("waktu_selesai"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
@@ -513,7 +513,7 @@ final class Periksa implements Baris {
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_pemeriksaan", id_pemeriksaan);
         baris.put("id_pendaftaran", id_pendaftaran);
         baris.put("id_dokter", id_dokter);
@@ -547,22 +547,22 @@ final class Resep implements Baris {
 
     static Resep dari(Map<String, Object> baris) {
         Resep item = new Resep();
-        item.id_resep = Basis.lng(baris.get("id_resep"));
-        item.id_pendaftaran = Basis.lng(baris.get("id_pendaftaran"));
-        item.kode_qr_unik = Basis.str(baris.get("kode_qr_unik"));
-        item.waktu_diterbitkan = Basis.str(baris.get("waktu_diterbitkan"));
-        item.pilihan_penebusan = Basis.str(baris.get("pilihan_penebusan"));
-        item.estimasi_jam_selesai = Basis.str(baris.get("estimasi_jam_selesai"));
-        item.status_resep = Basis.str(baris.get("status_resep"));
-        item.kadaluarsa_qr = Basis.str(baris.get("kadaluarsa_qr"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_resep = DatabaseRecords.lng(baris.get("id_resep"));
+        item.id_pendaftaran = DatabaseRecords.lng(baris.get("id_pendaftaran"));
+        item.kode_qr_unik = DatabaseRecords.str(baris.get("kode_qr_unik"));
+        item.waktu_diterbitkan = DatabaseRecords.str(baris.get("waktu_diterbitkan"));
+        item.pilihan_penebusan = DatabaseRecords.str(baris.get("pilihan_penebusan"));
+        item.estimasi_jam_selesai = DatabaseRecords.str(baris.get("estimasi_jam_selesai"));
+        item.status_resep = DatabaseRecords.str(baris.get("status_resep"));
+        item.kadaluarsa_qr = DatabaseRecords.str(baris.get("kadaluarsa_qr"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_resep", id_resep);
         baris.put("id_pendaftaran", id_pendaftaran);
         baris.put("kode_qr_unik", kode_qr_unik);
@@ -590,21 +590,21 @@ final class Detail implements Baris {
 
     static Detail dari(Map<String, Object> baris) {
         Detail item = new Detail();
-        item.id_detail = Basis.lng(baris.get("id_detail"));
-        item.id_resep = Basis.lng(baris.get("id_resep"));
-        item.id_obat = Basis.lng(baris.get("id_obat"));
-        item.jumlah = (int) Basis.lng(baris.get("jumlah"));
-        item.dosis_aturan_pakai = Basis.str(baris.get("dosis_aturan_pakai"));
-        item.instruksi_racikan = Basis.str(baris.get("instruksi_racikan"));
-        item.catatan = Basis.str(baris.get("catatan"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_detail = DatabaseRecords.lng(baris.get("id_detail"));
+        item.id_resep = DatabaseRecords.lng(baris.get("id_resep"));
+        item.id_obat = DatabaseRecords.lng(baris.get("id_obat"));
+        item.jumlah = (int) DatabaseRecords.lng(baris.get("jumlah"));
+        item.dosis_aturan_pakai = DatabaseRecords.str(baris.get("dosis_aturan_pakai"));
+        item.instruksi_racikan = DatabaseRecords.str(baris.get("instruksi_racikan"));
+        item.catatan = DatabaseRecords.str(baris.get("catatan"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_detail", id_detail);
         baris.put("id_resep", id_resep);
         baris.put("id_obat", id_obat);
@@ -633,23 +633,23 @@ final class Kabar implements Baris {
 
     static Kabar dari(Map<String, Object> baris) {
         Kabar item = new Kabar();
-        item.id_notifikasi = Basis.lng(baris.get("id_notifikasi"));
-        item.id_pasien = Basis.lng(baris.get("id_pasien"));
-        item.id_pendaftaran = Basis.lngOrNull(baris.get("id_pendaftaran"));
-        item.jenis_notifikasi = Basis.str(baris.get("jenis_notifikasi"));
-        item.channel = Basis.str(baris.get("channel"));
-        item.nomor_tujuan = Basis.str(baris.get("nomor_tujuan"));
-        item.pesan = Basis.str(baris.get("pesan"));
-        item.status = Basis.str(baris.get("status"));
-        item.waktu_dikirim = Basis.str(baris.get("waktu_dikirim"));
-        item.response_api = Basis.str(baris.get("response_api"));
-        item.created_at = Basis.str(baris.get("created_at"));
+        item.id_notifikasi = DatabaseRecords.lng(baris.get("id_notifikasi"));
+        item.id_pasien = DatabaseRecords.lng(baris.get("id_pasien"));
+        item.id_pendaftaran = DatabaseRecords.lngOrNull(baris.get("id_pendaftaran"));
+        item.jenis_notifikasi = DatabaseRecords.str(baris.get("jenis_notifikasi"));
+        item.channel = DatabaseRecords.str(baris.get("channel"));
+        item.nomor_tujuan = DatabaseRecords.str(baris.get("nomor_tujuan"));
+        item.pesan = DatabaseRecords.str(baris.get("pesan"));
+        item.status = DatabaseRecords.str(baris.get("status"));
+        item.waktu_dikirim = DatabaseRecords.str(baris.get("waktu_dikirim"));
+        item.response_api = DatabaseRecords.str(baris.get("response_api"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_notifikasi", id_notifikasi);
         baris.put("id_pasien", id_pasien);
         baris.put("id_pendaftaran", id_pendaftaran);
@@ -677,20 +677,20 @@ final class Otp implements Baris {
 
     static Otp dari(Map<String, Object> baris) {
         Otp item = new Otp();
-        item.id_otp = Basis.lng(baris.get("id_otp"));
-        item.id_user = Basis.lng(baris.get("id_user"));
-        item.kode_otp = Basis.str(baris.get("kode_otp"));
-        item.tujuan = Basis.str(baris.get("tujuan"));
-        item.expired_at = Basis.str(baris.get("expired_at"));
-        item.verified_at = Basis.str(baris.get("verified_at"));
-        item.attempt = (int) Basis.lng(baris.get("attempt"));
-        item.created_at = Basis.str(baris.get("created_at"));
+        item.id_otp = DatabaseRecords.lng(baris.get("id_otp"));
+        item.id_user = DatabaseRecords.lng(baris.get("id_user"));
+        item.kode_otp = DatabaseRecords.str(baris.get("kode_otp"));
+        item.tujuan = DatabaseRecords.str(baris.get("tujuan"));
+        item.expired_at = DatabaseRecords.str(baris.get("expired_at"));
+        item.verified_at = DatabaseRecords.str(baris.get("verified_at"));
+        item.attempt = (int) DatabaseRecords.lng(baris.get("attempt"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_otp", id_otp);
         baris.put("id_user", id_user);
         baris.put("kode_otp", kode_otp);
@@ -718,23 +718,23 @@ final class Ambil implements Baris {
 
     static Ambil dari(Map<String, Object> baris) {
         Ambil item = new Ambil();
-        item.id_pengambilan = Basis.lng(baris.get("id_pengambilan"));
-        item.id_resep = Basis.lng(baris.get("id_resep"));
-        item.id_user_petugas = Basis.lng(baris.get("id_user_petugas"));
-        item.diambil_oleh = Basis.str(baris.get("diambil_oleh"));
-        item.nama_pengambil = Basis.str(baris.get("nama_pengambil"));
-        item.waktu_pengambilan = Basis.str(baris.get("waktu_pengambilan"));
-        item.metode_verifikasi = Basis.str(baris.get("metode_verifikasi"));
-        item.status = Basis.str(baris.get("status"));
-        item.catatan = Basis.str(baris.get("catatan"));
-        item.created_at = Basis.str(baris.get("created_at"));
-        item.updated_at = Basis.str(baris.get("updated_at"));
+        item.id_pengambilan = DatabaseRecords.lng(baris.get("id_pengambilan"));
+        item.id_resep = DatabaseRecords.lng(baris.get("id_resep"));
+        item.id_user_petugas = DatabaseRecords.lng(baris.get("id_user_petugas"));
+        item.diambil_oleh = DatabaseRecords.str(baris.get("diambil_oleh"));
+        item.nama_pengambil = DatabaseRecords.str(baris.get("nama_pengambil"));
+        item.waktu_pengambilan = DatabaseRecords.str(baris.get("waktu_pengambilan"));
+        item.metode_verifikasi = DatabaseRecords.str(baris.get("metode_verifikasi"));
+        item.status = DatabaseRecords.str(baris.get("status"));
+        item.catatan = DatabaseRecords.str(baris.get("catatan"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
+        item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_pengambilan", id_pengambilan);
         baris.put("id_resep", id_resep);
         baris.put("id_user_petugas", id_user_petugas);
@@ -763,21 +763,21 @@ final class Mutasi implements Baris {
 
     static Mutasi dari(Map<String, Object> baris) {
         Mutasi item = new Mutasi();
-        item.id_mutasi = Basis.lng(baris.get("id_mutasi"));
-        item.id_obat = Basis.lng(baris.get("id_obat"));
-        item.id_user = Basis.lng(baris.get("id_user"));
-        item.jenis_mutasi = Basis.str(baris.get("jenis_mutasi"));
-        item.jumlah = (int) Basis.lng(baris.get("jumlah"));
-        item.stok_sebelum = (int) Basis.lng(baris.get("stok_sebelum"));
-        item.stok_sesudah = (int) Basis.lng(baris.get("stok_sesudah"));
-        item.keterangan = Basis.str(baris.get("keterangan"));
-        item.created_at = Basis.str(baris.get("created_at"));
+        item.id_mutasi = DatabaseRecords.lng(baris.get("id_mutasi"));
+        item.id_obat = DatabaseRecords.lng(baris.get("id_obat"));
+        item.id_user = DatabaseRecords.lng(baris.get("id_user"));
+        item.jenis_mutasi = DatabaseRecords.str(baris.get("jenis_mutasi"));
+        item.jumlah = (int) DatabaseRecords.lng(baris.get("jumlah"));
+        item.stok_sebelum = (int) DatabaseRecords.lng(baris.get("stok_sebelum"));
+        item.stok_sesudah = (int) DatabaseRecords.lng(baris.get("stok_sesudah"));
+        item.keterangan = DatabaseRecords.str(baris.get("keterangan"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_mutasi", id_mutasi);
         baris.put("id_obat", id_obat);
         baris.put("id_user", id_user);
@@ -803,20 +803,20 @@ final class Jejak implements Baris {
 
     static Jejak dari(Map<String, Object> baris) {
         Jejak item = new Jejak();
-        item.id_log = Basis.lng(baris.get("id_log"));
-        item.id_user = Basis.lngOrNull(baris.get("id_user"));
-        item.aktivitas = Basis.str(baris.get("aktivitas"));
-        item.tabel_referensi = Basis.str(baris.get("tabel_referensi"));
-        item.id_referensi = Basis.lngOrNull(baris.get("id_referensi"));
-        item.keterangan = Basis.str(baris.get("keterangan"));
-        item.ip_address = Basis.str(baris.get("ip_address"));
-        item.created_at = Basis.str(baris.get("created_at"));
+        item.id_log = DatabaseRecords.lng(baris.get("id_log"));
+        item.id_user = DatabaseRecords.lngOrNull(baris.get("id_user"));
+        item.aktivitas = DatabaseRecords.str(baris.get("aktivitas"));
+        item.tabel_referensi = DatabaseRecords.str(baris.get("tabel_referensi"));
+        item.id_referensi = DatabaseRecords.lngOrNull(baris.get("id_referensi"));
+        item.keterangan = DatabaseRecords.str(baris.get("keterangan"));
+        item.ip_address = DatabaseRecords.str(baris.get("ip_address"));
+        item.created_at = DatabaseRecords.str(baris.get("created_at"));
         return item;
     }
 
     @Override
     public Map<String, Object> peta() {
-        Map<String, Object> baris = Basis.baris();
+        Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_log", id_log);
         baris.put("id_user", id_user);
         baris.put("aktivitas", aktivitas);

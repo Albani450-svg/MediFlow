@@ -6,8 +6,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /** Koneksi medicflow_db. Variabel lingkungan: MEDIFLOW_DB_HOST, USER, PASSWORD, NAME, PORT. */
-final class Db {
-    private Db() {}
+final class Database {
+    private Database() {}
 
     static Connection open() throws SQLException {
         String host = env("MEDIFLOW_DB_HOST", "127.0.0.1");

@@ -10,13 +10,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /** Tahap kunjungan, jadwal, stok, dan teks notifikasi. */
-final class Aturan {
+final class VisitRules {
     static final ZoneId ZONA = ZoneId.of("Asia/Jakarta");
     static final String[] HARI = {"Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"};
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
             .withZone(ZoneOffset.UTC);
 
-    private Aturan() {}
+    private VisitRules() {}
 
     static String iso(Instant saat) {
         return ISO.format(saat.truncatedTo(ChronoUnit.MILLIS));

@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 
 /** Aplikasi dan API MediFlow di 127.0.0.1:8088. */
-public final class ApiServer {
+public final class ApplicationServer {
     private static final int BATAS_BODY = 20_000_000;
 
     public static void main(String[] args) throws IOException {
@@ -26,7 +26,7 @@ public final class ApiServer {
             port = Integer.parseInt(args[0]);
         }
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-        server.createContext("/", ApiServer::tangani);
+        server.createContext("/", ApplicationServer::tangani);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
         System.out.println("[mediflow] Aplikasi Java di http://127.0.0.1:" + port + "/");
@@ -67,33 +67,33 @@ public final class ApiServer {
                 sumber(tukar, metode, jalur.substring("/api/".length()));
                 return;
             }
-            Situs.layani(tukar, metode, jalur);
+            WebSite.layani(tukar, metode, jalur);
         } finally {
             tukar.close();
         }
     }
 
     private static void database(HttpExchange tukar, String metode) throws IOException {
-        try (Connection db = Db.open()) {
+        try (Connection db = Database.open()) {
             if ("GET".equals(metode)) {
                 Map<String, Object> body = new LinkedHashMap<>();
                 body.put("ok", true);
-                body.put("data", Snapshot.baca(db));
+                body.put("data", DatabaseSnapshot.baca(db));
                 kirim(tukar, 200, body);
                 return;
             }
             if ("PUT".equals(metode) || "POST".equals(metode)) {
-                Map<String, Object> data = Json.objekSnapshot(bacaBody(tukar));
-                Snapshot.simpan(db, data);
+                Map<String, Object> data = JsonConverter.objekSnapshot(bacaBody(tukar));
+                DatabaseSnapshot.simpan(db, data);
                 kirim(tukar, 200, Map.of("ok", true));
                 return;
             }
             kirim(tukar, 404, tidakAda());
-        } catch (Json.Rusak error) {
+        } catch (JsonConverter.Rusak error) {
             kirim(tukar, 400, Map.of("ok", false, "error", error.getMessage()));
         } catch (Exception error) {
-            System.err.println("[mediflow] " + Values.pesan(error));
-            kirim(tukar, 500, Map.of("ok", false, "error", Values.pesan(error)));
+            System.err.println("[mediflow] " + ColumnValues.pesan(error));
+            kirim(tukar, 500, Map.of("ok", false, "error", ColumnValues.pesan(error)));
         }
     }
 
@@ -103,7 +103,7 @@ public final class ApiServer {
             kirim(tukar, 404, tidakAda());
             return;
         }
-        Catalog.Table tabel = Catalog.BY_NAME.get(bagian[0]);
+        TableCatalog.Table tabel = TableCatalog.BY_NAME.get(bagian[0]);
         if (tabel == null) {
             kirim(tukar, 404, tidakAda());
             return;
@@ -116,37 +116,37 @@ public final class ApiServer {
             }
             id = Long.parseLong(bagian[1]);
         }
-        try (Connection db = Db.open()) {
-            Resource.Jawaban jawaban = layani(db, tabel, metode, id, tukar);
+        try (Connection db = Database.open()) {
+            TableEndpoint.Jawaban jawaban = layani(db, tabel, metode, id, tukar);
             if (jawaban == null) {
                 kirim(tukar, 404, tidakAda());
                 return;
             }
             kirim(tukar, jawaban.status(), jawaban.body());
-        } catch (Json.Rusak error) {
+        } catch (JsonConverter.Rusak error) {
             kirim(tukar, 400, gagal(error.getMessage()));
         } catch (Exception error) {
-            System.err.println("[mediflow] " + Values.pesan(error));
-            kirim(tukar, 500, gagal(Values.pesan(error)));
+            System.err.println("[mediflow] " + ColumnValues.pesan(error));
+            kirim(tukar, 500, gagal(ColumnValues.pesan(error)));
         }
     }
 
-    private static Resource.Jawaban layani(
-            Connection db, Catalog.Table tabel, String metode, Long id, HttpExchange tukar) throws Exception {
+    private static TableEndpoint.Jawaban layani(
+            Connection db, TableCatalog.Table tabel, String metode, Long id, HttpExchange tukar) throws Exception {
         if (id == null && "GET".equals(metode)) {
-            return Resource.daftar(db, tabel, kueri(tukar.getRequestURI().getRawQuery()));
+            return TableEndpoint.daftar(db, tabel, kueri(tukar.getRequestURI().getRawQuery()));
         }
         if (id == null && "POST".equals(metode)) {
-            return Resource.buat(db, tabel, Json.objek(bacaBody(tukar)));
+            return TableEndpoint.buat(db, tabel, JsonConverter.objek(bacaBody(tukar)));
         }
         if (id != null && "GET".equals(metode)) {
-            return Resource.satu(db, tabel, id);
+            return TableEndpoint.satu(db, tabel, id);
         }
         if (id != null && ("PUT".equals(metode) || "PATCH".equals(metode))) {
-            return Resource.ubah(db, tabel, id, Json.objek(bacaBody(tukar)));
+            return TableEndpoint.ubah(db, tabel, id, JsonConverter.objek(bacaBody(tukar)));
         }
         if (id != null && "DELETE".equals(metode)) {
-            return Resource.hapus(db, tabel, id);
+            return TableEndpoint.hapus(db, tabel, id);
         }
         return null;
     }
@@ -230,7 +230,7 @@ public final class ApiServer {
     }
 
     private static void kirim(HttpExchange tukar, int status, Object body) throws IOException {
-        byte[] byteBody = Json.MAPPER.writeValueAsBytes(body);
+        byte[] byteBody = JsonConverter.MAPPER.writeValueAsBytes(body);
         tukar.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
         tukar.sendResponseHeaders(status, byteBody.length);
         tukar.getResponseBody().write(byteBody);

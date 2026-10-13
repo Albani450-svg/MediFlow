@@ -4,11 +4,11 @@
   "description": "PWA antrean poliklinik, rekam medis, dan e-resep MediFlow.",
   "private": true,
   "scripts": {
-    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jalankan.ps1",
-    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jalankan.ps1",
-    "api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jalankan.ps1",
-    "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jalankan.ps1 periksa",
-    "dummy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jalankan.ps1 dummy"
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-application.ps1",
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-application.ps1",
+    "api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-application.ps1",
+    "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-application.ps1 periksa",
+    "dummy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-application.ps1 dummy"
   },
   "author": "",
   "license": "ISC"

@@ -17,15 +17,15 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /** CRUD satu tabel, plus aturan jadwal, pendaftaran, dan notifikasi. */
-final class Resource {
+final class TableEndpoint {
     record Jawaban(int status, Map<String, Object> body) {}
 
     private record Klausul(String name, String param) {}
 
-    private Resource() {}
+    private TableEndpoint() {}
 
-    static Jawaban daftar(Connection db, Catalog.Table tabel, Map<String, String> saringan) throws SQLException {
-        StringBuilder sql = new StringBuilder("SELECT * FROM ").append(Snapshot.kutip(tabel.name()));
+    static Jawaban daftar(Connection db, TableCatalog.Table tabel, Map<String, String> saringan) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT * FROM ").append(DatabaseSnapshot.kutip(tabel.name()));
         List<Object> nilai = new ArrayList<>();
         boolean awal = true;
         for (String kolom : tabel.filters()) {
@@ -38,14 +38,14 @@ final class Resource {
             }
             sql.append(awal ? " WHERE " : " AND ");
             awal = false;
-            sql.append(Snapshot.kutip(kolom)).append(" = ?");
+            sql.append(DatabaseSnapshot.kutip(kolom)).append(" = ?");
             if (tabel.booleans().contains(kolom)) {
-                nilai.add(Values.nyala(isi) ? 1 : 0);
+                nilai.add(ColumnValues.nyala(isi) ? 1 : 0);
             } else {
                 nilai.add(isi);
             }
         }
-        sql.append(" ORDER BY ").append(Snapshot.kutip(tabel.pk())).append(" ASC");
+        sql.append(" ORDER BY ").append(DatabaseSnapshot.kutip(tabel.pk())).append(" ASC");
         List<Map<String, Object>> baris = new ArrayList<>();
         try (PreparedStatement ps = db.prepareStatement(sql.toString())) {
             ikatDaftar(ps, nilai);
@@ -58,7 +58,7 @@ final class Resource {
         return ok("Data " + tabel.label() + " berhasil diambil", baris, 200);
     }
 
-    static Jawaban satu(Connection db, Catalog.Table tabel, long id) throws SQLException {
+    static Jawaban satu(Connection db, TableCatalog.Table tabel, long id) throws SQLException {
         Map<String, Object> baris = cari(db, tabel, id);
         if (baris == null) {
             return gagal("Data " + tabel.label() + " tidak ditemukan", 404, null);
@@ -66,7 +66,7 @@ final class Resource {
         return ok("Data " + tabel.label() + " berhasil diambil", baris, 200);
     }
 
-    static Jawaban buat(Connection db, Catalog.Table tabel, Map<String, Object> mentah) throws SQLException {
+    static Jawaban buat(Connection db, TableCatalog.Table tabel, Map<String, Object> mentah) throws SQLException {
         Map<String, Object> data = siapkan(tabel, mentah);
         List<String> kurang = kurang(tabel, data);
         if (!kurang.isEmpty()) {
@@ -88,7 +88,7 @@ final class Resource {
         }
     }
 
-    static Jawaban ubah(Connection db, Catalog.Table tabel, long id, Map<String, Object> mentah) throws SQLException {
+    static Jawaban ubah(Connection db, TableCatalog.Table tabel, long id, Map<String, Object> mentah) throws SQLException {
         Map<String, Object> sebelum = cari(db, tabel, id);
         if (sebelum == null) {
             return gagal("Data " + tabel.label() + " tidak ditemukan", 404, null);
@@ -113,11 +113,11 @@ final class Resource {
         }
     }
 
-    static Jawaban hapus(Connection db, Catalog.Table tabel, long id) throws SQLException {
+    static Jawaban hapus(Connection db, TableCatalog.Table tabel, long id) throws SQLException {
         if (cari(db, tabel, id) == null) {
             return gagal("Data " + tabel.label() + " tidak ditemukan", 404, null);
         }
-        String sql = "DELETE FROM " + Snapshot.kutip(tabel.name()) + " WHERE " + Snapshot.kutip(tabel.pk()) + " = ?";
+        String sql = "DELETE FROM " + DatabaseSnapshot.kutip(tabel.name()) + " WHERE " + DatabaseSnapshot.kutip(tabel.pk()) + " = ?";
         try (PreparedStatement ps = db.prepareStatement(sql)) {
             ps.setLong(1, id);
             int jumlah = ps.executeUpdate();
@@ -130,7 +130,7 @@ final class Resource {
         }
     }
 
-    private static Map<String, Object> siapkan(Catalog.Table tabel, Map<String, Object> mentah) {
+    private static Map<String, Object> siapkan(TableCatalog.Table tabel, Map<String, Object> mentah) {
         Map<String, Object> data = new LinkedHashMap<>();
         for (String bidang : tabel.writable()) {
             if (mentah.containsKey(bidang)) {
@@ -145,7 +145,7 @@ final class Resource {
         for (String kolom : tabel.booleans()) {
             Object nilai = data.get(kolom);
             if (data.containsKey(kolom) && nilai != null && !"".equals(nilai)) {
-                data.put(kolom, Values.nyala(nilai) ? 1 : 0);
+                data.put(kolom, ColumnValues.nyala(nilai) ? 1 : 0);
             }
         }
         for (String kolom : tabel.dates()) {
@@ -157,7 +157,7 @@ final class Resource {
         for (String kolom : tabel.datetimes()) {
             Object nilai = data.get(kolom);
             if (nilai instanceof String teks && !teks.isEmpty()) {
-                String sql = Values.keSqlWaktu(teks);
+                String sql = ColumnValues.keSqlWaktu(teks);
                 if (sql != null) {
                     data.put(kolom, sql);
                 }
@@ -166,7 +166,7 @@ final class Resource {
         for (String kolom : tabel.times()) {
             Object nilai = data.get(kolom);
             if (nilai instanceof String teks && !teks.isEmpty()) {
-                String jam = Values.keJam(teks);
+                String jam = ColumnValues.keJam(teks);
                 if (jam != null) {
                     data.put(kolom, jam);
                 }
@@ -174,20 +174,20 @@ final class Resource {
         }
         for (String kolom : tabel.integers()) {
             Object nilai = data.get(kolom);
-            if (data.containsKey(kolom) && Values.numerik(nilai)) {
-                data.put(kolom, Values.keLong(nilai));
+            if (data.containsKey(kolom) && ColumnValues.numerik(nilai)) {
+                data.put(kolom, ColumnValues.keLong(nilai));
             }
         }
         for (String kolom : tabel.decimals()) {
             Object nilai = data.get(kolom);
-            if (data.containsKey(kolom) && Values.numerik(nilai)) {
-                data.put(kolom, Values.keDouble(nilai));
+            if (data.containsKey(kolom) && ColumnValues.numerik(nilai)) {
+                data.put(kolom, ColumnValues.keDouble(nilai));
             }
         }
         return data;
     }
 
-    private static List<String> kurang(Catalog.Table tabel, Map<String, Object> data) {
+    private static List<String> kurang(TableCatalog.Table tabel, Map<String, Object> data) {
         List<String> hilang = new ArrayList<>();
         for (String kolom : tabel.required()) {
             if (!data.containsKey(kolom) || data.get(kolom) == null) {
@@ -201,7 +201,7 @@ final class Resource {
         return hilang;
     }
 
-    private static Map<String, Object> salinCek(Catalog.Table tabel, Map<String, Object> data) {
+    private static Map<String, Object> salinCek(TableCatalog.Table tabel, Map<String, Object> data) {
         Map<String, Object> cek = new LinkedHashMap<>(data);
         for (String kolom : tabel.nullable()) {
             if (cek.containsKey(kolom) && cek.get(kolom) == null) {
@@ -212,10 +212,10 @@ final class Resource {
     }
 
     private static Map<String, String> validasi(
-            Connection db, Catalog.Table tabel, Map<String, Object> data, Long id) throws SQLException {
+            Connection db, TableCatalog.Table tabel, Map<String, Object> data, Long id) throws SQLException {
         Map<String, String> galat = new LinkedHashMap<>();
         boolean pembaruan = id != null;
-        for (Catalog.Field bidang : tabel.fields()) {
+        for (TableCatalog.Field bidang : tabel.fields()) {
             List<Klausul> klausul = klausul(bidang.rules());
             boolean jikaAda = klausul.stream().anyMatch(item -> item.name.equals("if_exist"));
             boolean bolehKosong = klausul.stream().anyMatch(item -> item.name.equals("permit_empty"));
@@ -226,7 +226,7 @@ final class Resource {
                 continue;
             }
             Object nilai = data.get(bidang.name());
-            String teks = Values.phpString(nilai);
+            String teks = ColumnValues.phpString(nilai);
             boolean kosong = nilai == null || teks.trim().isEmpty();
             for (Klausul aturan : klausul) {
                 if (aturan.name.equals("if_exist") || aturan.name.equals("permit_empty")) {
@@ -257,7 +257,7 @@ final class Resource {
             case "less_than_equal_to" -> angka(teks) && Double.parseDouble(teks) <= Double.parseDouble(aturan.param);
             case "in_list" -> List.of(aturan.param.split(",")).contains(teks);
             case "regex_match" -> cocok(teks, aturan.param);
-            case "valid_date" -> Values.tanggalSah(teks, aturan.param);
+            case "valid_date" -> ColumnValues.tanggalSah(teks, aturan.param);
             case "is_unique" -> unik(db, aturan.param, teks, id);
             case "is_not_unique" -> sudahAda(db, aturan.param, teks);
             default -> true;
@@ -287,12 +287,12 @@ final class Resource {
             abaikan = null;
         }
         StringBuilder sql = new StringBuilder("SELECT 1 FROM ")
-                .append(Snapshot.kutip(letak[0]))
+                .append(DatabaseSnapshot.kutip(letak[0]))
                 .append(" WHERE ")
-                .append(Snapshot.kutip(letak[1]))
+                .append(DatabaseSnapshot.kutip(letak[1]))
                 .append(" = ?");
         if (abaikan != null && nilaiAbaikan != null && !nilaiAbaikan.isEmpty()) {
-            sql.append(" AND ").append(Snapshot.kutip(abaikan)).append(" <> ?");
+            sql.append(" AND ").append(DatabaseSnapshot.kutip(abaikan)).append(" <> ?");
         }
         sql.append(" LIMIT 1");
         try (PreparedStatement ps = db.prepareStatement(sql.toString())) {
@@ -308,7 +308,7 @@ final class Resource {
 
     private static boolean sudahAda(Connection db, String param, String teks) throws SQLException {
         String[] letak = param.split(",", 3)[0].split("\\.", 2);
-        String sql = "SELECT 1 FROM " + Snapshot.kutip(letak[0]) + " WHERE " + Snapshot.kutip(letak[1]) + " = ? LIMIT 1";
+        String sql = "SELECT 1 FROM " + DatabaseSnapshot.kutip(letak[0]) + " WHERE " + DatabaseSnapshot.kutip(letak[1]) + " = ? LIMIT 1";
         try (PreparedStatement ps = db.prepareStatement(sql)) {
             ps.setString(1, teks);
             try (ResultSet rs = ps.executeQuery()) {
@@ -317,7 +317,7 @@ final class Resource {
         }
     }
 
-    private static String pesanAturan(Catalog.Field bidang, Klausul aturan) {
+    private static String pesanAturan(TableCatalog.Field bidang, Klausul aturan) {
         String khusus = bidang.messages().get(aturan.name);
         if (khusus != null) {
             return khusus;
@@ -371,7 +371,7 @@ final class Resource {
     }
 
     private static String periksa(
-            Connection db, Catalog.Table tabel, Map<String, Object> data, Map<String, Object> sebelum, Long id)
+            Connection db, TableCatalog.Table tabel, Map<String, Object> data, Map<String, Object> sebelum, Long id)
             throws SQLException {
         return switch (tabel.check() == null ? "" : tabel.check()) {
             case "jadwal" -> periksaJadwal(db, data, sebelum, id);
@@ -388,30 +388,30 @@ final class Resource {
         Object hari = nilai(data, sebelum, "hari");
         Object dokter = nilai(data, sebelum, "id_dokter");
         boolean aktif = data.containsKey("is_active")
-                ? Values.nyala(data.get("is_active"))
-                : sebelum.isEmpty() || Values.nyala(sebelum.containsKey("is_active") ? sebelum.get("is_active") : 1);
+                ? ColumnValues.nyala(data.get("is_active"))
+                : sebelum.isEmpty() || ColumnValues.nyala(sebelum.containsKey("is_active") ? sebelum.get("is_active") : 1);
         if (mulai instanceof String jamMulai && selesai instanceof String jamSelesai
-                && Values.menit(jamMulai) >= Values.menit(jamSelesai)) {
+                && ColumnValues.menit(jamMulai) >= ColumnValues.menit(jamSelesai)) {
             return "Jam selesai harus setelah jam mulai.";
         }
-        if (aktif && Values.ada(dokter) && Values.ada(hari)
+        if (aktif && ColumnValues.ada(dokter) && ColumnValues.ada(hari)
                 && mulai instanceof String jamMulai && selesai instanceof String jamSelesai) {
             String sql = """
                     SELECT id_jadwal, jam_mulai, jam_selesai FROM jadwal_dokter
                     WHERE id_dokter = ? AND hari = ? AND is_active = 1
                     """;
             try (PreparedStatement ps = db.prepareStatement(sql)) {
-                ps.setLong(1, Values.keLong(dokter));
+                ps.setLong(1, ColumnValues.keLong(dokter));
                 ps.setString(2, String.valueOf(hari));
                 try (ResultSet rs = ps.executeQuery()) {
-                    int awal = Values.menit(jamMulai);
-                    int akhir = Values.menit(jamSelesai);
+                    int awal = ColumnValues.menit(jamMulai);
+                    int akhir = ColumnValues.menit(jamSelesai);
                     while (rs.next()) {
                         if (id != null && rs.getLong("id_jadwal") == id) {
                             continue;
                         }
-                        int lainAwal = Values.menit(rs.getString("jam_mulai"));
-                        int lainAkhir = Values.menit(rs.getString("jam_selesai"));
+                        int lainAwal = ColumnValues.menit(rs.getString("jam_mulai"));
+                        int lainAkhir = ColumnValues.menit(rs.getString("jam_selesai"));
                         if (awal < lainAkhir && lainAwal < akhir) {
                             return "Jam ini bertumpuk dengan jadwal lain dokter yang sama.";
                         }
@@ -421,13 +421,13 @@ final class Resource {
         }
         if (id != null
                 && data.containsKey("is_active")
-                && !Values.nyala(data.get("is_active"))
-                && Values.nyala(sebelum.getOrDefault("is_active", 0))
+                && !ColumnValues.nyala(data.get("is_active"))
+                && ColumnValues.nyala(sebelum.getOrDefault("is_active", 0))
                 && antreanHariIni(db, id) > 0) {
             return "Jadwal ini masih punya antrean hari ini.";
         }
         if (id != null && data.containsKey("kuota_maksimal")) {
-            if (Values.keLong(data.get("kuota_maksimal")) < antreanHariIni(db, id)) {
+            if (ColumnValues.keLong(data.get("kuota_maksimal")) < antreanHariIni(db, id)) {
                 return "Kuota lebih kecil dari antrean yang sudah terdaftar hari ini.";
             }
         }
@@ -444,7 +444,7 @@ final class Resource {
         if (status == null) {
             status = "Menunggu";
         }
-        if (Values.ada(jadwal) && Values.ada(tanggal) && Values.ada(nomor)) {
+        if (ColumnValues.ada(jadwal) && ColumnValues.ada(tanggal) && ColumnValues.ada(nomor)) {
             long sama = hitung(db, """
                     SELECT COUNT(*) FROM pendaftaran_poli
                     WHERE id_jadwal = ? AND tanggal_kunjungan = ? AND nomor_antrean = ?
@@ -455,7 +455,7 @@ final class Resource {
             }
         }
         if (!"Batal".equals(String.valueOf(status))
-                && Values.ada(pasien) && Values.ada(jadwal) && Values.ada(tanggal)) {
+                && ColumnValues.ada(pasien) && ColumnValues.ada(jadwal) && ColumnValues.ada(tanggal)) {
             long ganda = hitung(db, """
                     SELECT COUNT(*) FROM pendaftaran_poli
                     WHERE id_pasien = ? AND id_jadwal = ? AND tanggal_kunjungan = ? AND status_antrean <> 'Batal'
@@ -540,8 +540,8 @@ final class Resource {
         return null;
     }
 
-    private static Map<String, Object> cari(Connection db, Catalog.Table tabel, long id) throws SQLException {
-        String sql = "SELECT * FROM " + Snapshot.kutip(tabel.name()) + " WHERE " + Snapshot.kutip(tabel.pk()) + " = ?";
+    private static Map<String, Object> cari(Connection db, TableCatalog.Table tabel, long id) throws SQLException {
+        String sql = "SELECT * FROM " + DatabaseSnapshot.kutip(tabel.name()) + " WHERE " + DatabaseSnapshot.kutip(tabel.pk()) + " = ?";
         try (PreparedStatement ps = db.prepareStatement(sql)) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
@@ -553,22 +553,22 @@ final class Resource {
         }
     }
 
-    private static Map<String, Object> bacaBaris(Catalog.Table tabel, ResultSet rs) throws SQLException {
+    private static Map<String, Object> bacaBaris(TableCatalog.Table tabel, ResultSet rs) throws SQLException {
         Map<String, Object> baris = new LinkedHashMap<>();
-        for (Catalog.Col kolom : tabel.columns()) {
-            baris.put(kolom.name(), Values.bacaCrud(rs.getString(kolom.name()), kolom));
+        for (TableCatalog.Col kolom : tabel.columns()) {
+            baris.put(kolom.name(), ColumnValues.bacaCrud(rs.getString(kolom.name()), kolom));
         }
         return baris;
     }
 
-    private static long sisip(Connection db, Catalog.Table tabel, Map<String, Object> data) throws SQLException {
+    private static long sisip(Connection db, TableCatalog.Table tabel, Map<String, Object> data) throws SQLException {
         List<String> kolom = new ArrayList<>(data.keySet());
-        StringBuilder sql = new StringBuilder("INSERT INTO ").append(Snapshot.kutip(tabel.name())).append(" (");
+        StringBuilder sql = new StringBuilder("INSERT INTO ").append(DatabaseSnapshot.kutip(tabel.name())).append(" (");
         for (int i = 0; i < kolom.size(); i++) {
             if (i > 0) {
                 sql.append(',');
             }
-            sql.append(Snapshot.kutip(kolom.get(i)));
+            sql.append(DatabaseSnapshot.kutip(kolom.get(i)));
         }
         sql.append(") VALUES (");
         sql.append("?,".repeat(Math.max(kolom.size(), 1)));
@@ -588,17 +588,17 @@ final class Resource {
         throw new SQLException("Id baru tidak kembali dari database.");
     }
 
-    private static void perbarui(Connection db, Catalog.Table tabel, long id, Map<String, Object> data)
+    private static void perbarui(Connection db, TableCatalog.Table tabel, long id, Map<String, Object> data)
             throws SQLException {
         List<String> kolom = new ArrayList<>(data.keySet());
-        StringBuilder sql = new StringBuilder("UPDATE ").append(Snapshot.kutip(tabel.name())).append(" SET ");
+        StringBuilder sql = new StringBuilder("UPDATE ").append(DatabaseSnapshot.kutip(tabel.name())).append(" SET ");
         for (int i = 0; i < kolom.size(); i++) {
             if (i > 0) {
                 sql.append(',');
             }
-            sql.append(Snapshot.kutip(kolom.get(i))).append(" = ?");
+            sql.append(DatabaseSnapshot.kutip(kolom.get(i))).append(" = ?");
         }
-        sql.append(" WHERE ").append(Snapshot.kutip(tabel.pk())).append(" = ?");
+        sql.append(" WHERE ").append(DatabaseSnapshot.kutip(tabel.pk())).append(" = ?");
         try (PreparedStatement ps = db.prepareStatement(sql.toString())) {
             for (int i = 0; i < kolom.size(); i++) {
                 ikatKolom(ps, i + 1, data.get(kolom.get(i)), tabel.kolom(kolom.get(i)));
@@ -608,16 +608,16 @@ final class Resource {
         }
     }
 
-    private static void ikatKolom(PreparedStatement ps, int indeks, Object nilai, Catalog.Col kolom)
+    private static void ikatKolom(PreparedStatement ps, int indeks, Object nilai, TableCatalog.Col kolom)
             throws SQLException {
         if (nilai == null || kolom == null) {
             ps.setNull(indeks, Types.VARCHAR);
             return;
         }
         switch (kolom.type()) {
-            case INT -> ps.setLong(indeks, Values.keLong(nilai));
-            case BOOL -> ps.setInt(indeks, Values.nyala(nilai) ? 1 : 0);
-            case DEC -> ps.setDouble(indeks, Values.keDouble(nilai));
+            case INT -> ps.setLong(indeks, ColumnValues.keLong(nilai));
+            case BOOL -> ps.setInt(indeks, ColumnValues.nyala(nilai) ? 1 : 0);
+            case DEC -> ps.setDouble(indeks, ColumnValues.keDouble(nilai));
             default -> ps.setString(indeks, String.valueOf(nilai));
         }
     }
@@ -638,8 +638,8 @@ final class Resource {
         }
     }
 
-    private static Jawaban galatBasis(Catalog.Table tabel, SQLException error, String aksi) {
-        String pesan = Values.pesan(error);
+    private static Jawaban galatBasis(TableCatalog.Table tabel, SQLException error, String aksi) {
+        String pesan = ColumnValues.pesan(error);
         int kode = 422;
         int vendor = error.getErrorCode();
         String rendah = pesan.toLowerCase(Locale.ROOT);

@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 /** Bentuk tabel medicflow_db dan aturan validasi CRUD. */
-final class Catalog {
+final class TableCatalog {
     enum Type { INT, BOOL, DEC, STR, DT, DATE, TIME }
 
     record Col(String name, Type type, boolean nullable) {}
@@ -73,7 +73,7 @@ final class Catalog {
         BY_NAME = Map.copyOf(peta);
     }
 
-    private Catalog() {}
+    private TableCatalog() {}
 
     private static Table pengguna() {
         return bangun("users", "pengguna", "id_user", stempel(

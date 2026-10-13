@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Teks langkah, format tanggal, dan panduan peran. */
-final class Tampilan {
+final class ScreenText {
     record Kode(String kode, String nama) {}
 
     record Langkah(int tahap, String singkat, String judul, String deskripsi, String pasien, String tugas,
@@ -114,7 +114,7 @@ final class Tampilan {
             "farmasi", "Belum ada resep. Resep muncul di sini setelah pasien memilih apotek rumah sakit."
     );
 
-    private Tampilan() {}
+    private ScreenText() {}
 
     private static Langkah langkah(int tahap, String singkat, String judul, String deskripsi, String pasien,
                                    String tugas, String tombol, String pemilik, String pemilikNama) {
@@ -217,7 +217,7 @@ final class Tampilan {
         if (iso == null || iso.isEmpty()) {
             return "-";
         }
-        ZonedDateTime zona = Instant.parse(iso).atZone(Aturan.ZONA);
+        ZonedDateTime zona = Instant.parse(iso).atZone(VisitRules.ZONA);
         return String.format("%02d.%02d", zona.getHour(), zona.getMinute());
     }
 
@@ -227,7 +227,7 @@ final class Tampilan {
         }
         LocalDate tanggal = nilai.length() <= 10
                 ? LocalDate.parse(nilai.substring(0, 10))
-                : Instant.parse(nilai).atZone(Aturan.ZONA).toLocalDate();
+                : Instant.parse(nilai).atZone(VisitRules.ZONA).toLocalDate();
         return tanggal.getDayOfMonth() + " " + BULAN[tanggal.getMonthValue()] + " " + tanggal.getYear();
     }
 

@@ -5,10 +5,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 /** Hash kata sandi demo dan penyamaran NIK. Produksi memakai hash lambat di server. */
-final class Sandi {
+final class PasswordHash {
     private static final SecureRandom ACAK = new SecureRandom();
 
-    private Sandi() {}
+    private PasswordHash() {}
 
     static String hashPassword(String plain) {
         try {

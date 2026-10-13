@@ -42,25 +42,25 @@ Perlu JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memak
 # 1. Buat database medicflow_db, lalu impor skema dan penyesuaian demo.
 #    phpMyAdmin, atau:
 #    mysql -u root < db/schema.sql
-#    mysql -u root medicflow_db < db/sesuaikan-pwa.sql
+#    mysql -u root medicflow_db < db/sesuaikan-akun-demo.sql
 
 # 2. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
 #    Perintah ini mengganti isi 15 tabel medicflow_db.
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\jalankan.ps1 dummy
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1 dummy
 
 # 3. Jalankan aplikasi. Peramban terbuka ke halaman masuk.
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\jalankan.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1
 ```
 
 - Halaman dan API: http://127.0.0.1:8088/
 - Kesehatan API: http://127.0.0.1:8088/api
-- Pemeriksaan alur tanpa menyalakan server: `scripts\jalankan.ps1 periksa`
+- Pemeriksaan alur tanpa menyalakan server: `scripts\run-application.ps1 periksa`
 
 `npm run dev`, `npm run check`, dan `npm run dummy` memanggil skrip yang sama. Server hanya menjawab dari komputer ini (`127.0.0.1`).
 
-Koneksi MySQL ada di `api/src/mediflow/Db.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
+Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
 
-`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `scripts\jalankan.ps1 dummy` mengisi data uji dari `api/src/mediflow/DataUji.java` dan mengganti isi tabel.
+`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `scripts\run-application.ps1 dummy` mengisi data uji dari `api/src/mediflow/DemoData.java` dan mengganti isi tabel.
 
 Jika MySQL tidak terjangkau, proses Java memakai data uji di memori dan tidak menuliskannya kembali. Jika proses Java berhenti, aplikasi tidak bisa dibuka: layar tidak lagi disimpan di peramban.
 
@@ -86,11 +86,11 @@ Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini.
 
 | Perintah | Fungsi |
 | --- | --- |
-| `scripts\jalankan.ps1` | Menyusun sumber Java, lalu menjalankan aplikasi di port 8088 |
-| `scripts\jalankan.ps1 periksa` | Pemeriksaan alur di memori: jadwal ganda, stok habis, kode yang dipakai ulang, dan catatan stok |
-| `scripts\jalankan.ps1 dummy` | Mengisi `medicflow_db` dengan data uji hari ini. Isi tabel yang ada diganti |
+| `scripts\run-application.ps1` | Menyusun sumber Java, lalu menjalankan aplikasi di port 8088 |
+| `scripts\run-application.ps1 periksa` | Pemeriksaan alur di memori: jadwal ganda, stok habis, kode yang dipakai ulang, dan catatan stok |
+| `scripts\run-application.ps1 dummy` | Mengisi `medicflow_db` dengan data uji hari ini. Isi tabel yang ada diganti |
 
-Di Visual Studio Code, **Run PWA** membuka Edge ke http://127.0.0.1:8088 dan menyalakan server yang sama.
+Di Visual Studio Code, **Run application** membuka Edge ke http://127.0.0.1:8088 dan menyalakan server yang sama.
 
 ## Struktur
 
@@ -98,15 +98,15 @@ Di Visual Studio Code, **Run PWA** membuka Edge ke http://127.0.0.1:8088 dan men
 MediFlow/
   public/
     mediflow.css           gaya layar
-    app.js                 token sesi, izin notifikasi, dan tutup toast
-    sw.js                  cache berkas statis dan notifikasi
-    manifest.json          identitas pemasangan PWA
+    application.js         token sesi, izin notifikasi, dan tutup toast
+    service-worker.js      cache berkas statis dan notifikasi
+    manifest.json          identitas pemasangan aplikasi
     assets/icons/          ikon 24, 48, 192, dan 512
   scripts/
-    jalankan.ps1           menyusun dan menjalankan aplikasi Java
+    run-application.ps1    menyusun dan menjalankan aplikasi Java
   db/
     schema.sql             skema medicflow_db
-    sesuaikan-pwa.sql      akun demo setelah impor dump
+    sesuaikan-akun-demo.sql  akun demo setelah impor dump
   api/
     lib/                   jar Jackson dan MySQL, tanpa Maven
     src/mediflow/          domain, API, dan layar HTML
@@ -116,17 +116,23 @@ Kode Java ada di `api/src/mediflow/`:
 
 | Berkas | Isi |
 | --- | --- |
-| `ApiServer.java` | HTTP di 127.0.0.1:8088, API dan halaman |
-| `Situs.java` | Sesi per jendela dan berkas statis |
-| `Layar.java` | HTML masuk dan beranda |
-| `Toko.java` | Masuk, kunjungan, resep, dan stok |
-| `Aturan.java` | Tahap, bentrok jadwal, stok, dan teks notifikasi |
-| `Tampilan.java` | Sepuluh langkah, empat bagian, tanggal, dan rupiah |
-| `DataUji.java` | Data cadangan bila MySQL tidak menjawab |
-| `Basis.java` | Bentuk data, sama dengan tabel MySQL |
-| `Sandi.java` | Hash kata sandi demo dan penyamaran NIK |
-| `UjiAlur.java` | Pemeriksaan alur |
-| `IsiDummy.java` | Menulis data uji ke MySQL |
+| `ApplicationServer.java` | HTTP di 127.0.0.1:8088, halaman dan jalur data |
+| `WebSite.java` | Sesi per jendela dan berkas statis |
+| `HtmlPages.java` | HTML masuk dan beranda |
+| `VisitStore.java` | Masuk, kunjungan, resep, dan stok |
+| `VisitRules.java` | Tahap, bentrok jadwal, stok, dan teks notifikasi |
+| `ScreenText.java` | Sepuluh langkah, empat bagian, tanggal, dan rupiah |
+| `DemoData.java` | Data cadangan bila MySQL tidak menjawab |
+| `DatabaseRecords.java` | Bentuk data, sama dengan tabel MySQL |
+| `PasswordHash.java` | Hash kata sandi demo dan penyamaran NIK |
+| `VisitFlowCheck.java` | Pemeriksaan alur |
+| `LoadDemoData.java` | Menulis data uji ke MySQL |
+| `Database.java` | Koneksi MySQL |
+| `DatabaseSnapshot.java` | Baca dan tulis seluruh database |
+| `TableCatalog.java` | Bentuk tabel dan validasi |
+| `TableEndpoint.java` | Buat, baca, ubah, dan hapus satu tabel |
+| `ColumnValues.java` | Konversi nilai kolom |
+| `JsonConverter.java` | Baca dan tulis teks JSON |
 
 API tetap tersedia di proses yang sama:
 

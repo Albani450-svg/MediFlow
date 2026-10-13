@@ -11,9 +11,9 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** Status kunjungan, masuk, resep, dan stok. Satu salinan untuk tiap jendela. */
-final class Toko {
+final class VisitStore {
     private static final Pattern WA = Pattern.compile("^08\\d{8,12}$");
-    private static final Set<String> HARI = Set.of(Aturan.HARI);
+    private static final Set<String> HARI = Set.of(VisitRules.HARI);
 
     final class Hasil<T> {
         final boolean ok;
@@ -81,41 +81,41 @@ final class Toko {
         int sisa;
     }
 
-    private Basis basis;
+    private DatabaseRecords basis;
     private boolean bolehDorong;
     private String asal = "peramban";
     private Long idUser;
     private String role;
     private final Set<Long> dibaca = new HashSet<>();
 
-    private Toko(boolean server) {
+    private VisitStore(boolean server) {
         if (!server) {
-            basis = DataUji.buat();
+            basis = DemoData.buat();
             return;
         }
-        try (Connection db = Db.open()) {
-            basis = Basis.dari(Snapshot.baca(db));
+        try (Connection db = Database.open()) {
+            basis = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
             asal = "mysql";
             bolehDorong = true;
         } catch (Exception error) {
-            basis = DataUji.buat();
-            System.err.println("[mediflow] medicflow_db tidak terbaca: " + Values.pesan(error));
+            basis = DemoData.buat();
+            System.err.println("[mediflow] medicflow_db tidak terbaca: " + ColumnValues.pesan(error));
         }
     }
 
-    static Toko memori() {
-        return new Toko(false);
+    static VisitStore memori() {
+        return new VisitStore(false);
     }
 
-    static Toko dariServer() {
-        return new Toko(true);
+    static VisitStore dariServer() {
+        return new VisitStore(true);
     }
 
     String sumber() {
         return asal;
     }
 
-    Basis snapshot() {
+    DatabaseRecords snapshot() {
         return basis;
     }
 
@@ -143,10 +143,10 @@ final class Toko {
         if (!bolehDorong) {
             return;
         }
-        try (Connection db = Db.open()) {
-            Snapshot.simpan(db, basis.kePeta());
+        try (Connection db = Database.open()) {
+            DatabaseSnapshot.simpan(db, basis.kePeta());
         } catch (Exception error) {
-            System.err.println("[mediflow] Perubahan belum tersimpan ke medicflow_db: " + Values.pesan(error));
+            System.err.println("[mediflow] Perubahan belum tersimpan ke medicflow_db: " + ColumnValues.pesan(error));
         }
     }
 
@@ -196,7 +196,7 @@ final class Toko {
         if (user == null) {
             return gagal("Akun tidak ditemukan atau nonaktif.");
         }
-        if (!Sandi.hashPassword(password).equals(user.password_hash)) {
+        if (!PasswordHash.hashPassword(password).equals(user.password_hash)) {
             return gagal("Kata sandi tidak sesuai.");
         }
         if ("pasien".equals(user.role) && nomorWa != null) {
@@ -214,12 +214,12 @@ final class Toko {
             if (pasien == null) {
                 return gagal("Data pasien tidak ditemukan.");
             }
-            String sekarang = Aturan.sekarangIso();
+            String sekarang = VisitRules.sekarangIso();
             pasien.no_telepon = nomor;
             pasien.updated_at = sekarang;
             user.no_telepon = nomor;
         }
-        user.updated_at = Aturan.sekarangIso();
+        user.updated_at = VisitRules.sekarangIso();
         idUser = user.id_user;
         role = user.role;
         catat(user.id_user, "LOGIN", "users", user.id_user, "Masuk sebagai " + user.role);
@@ -239,7 +239,7 @@ final class Toko {
 
     void resetDemo() {
         Pengguna actor = aktor();
-        basis = DataUji.buat();
+        basis = DemoData.buat();
         dibaca.clear();
         idUser = null;
         role = null;
@@ -328,7 +328,7 @@ final class Toko {
     }
 
     List<Slot> slotHari(String tanggal, Long idPoli) {
-        String hari = Aturan.namaHari(tanggal);
+        String hari = VisitRules.namaHari(tanggal);
         List<Slot> hasil = new ArrayList<>();
         for (Jadwal jadwal : basis.jadwal_dokter) {
             if (!jadwal.is_active || !hari.equals(jadwal.hari)) {
@@ -475,11 +475,11 @@ final class Toko {
         if (jadwal == null) {
             return gagal("Jadwal tidak ditemukan.");
         }
-        String tanggal = Aturan.tanggalIso();
-        if (!jadwal.hari.equals(Aturan.namaHari(tanggal))) {
+        String tanggal = VisitRules.tanggalIso();
+        if (!jadwal.hari.equals(VisitRules.namaHari(tanggal))) {
             return gagal("Jadwal itu bukan untuk hari ini.");
         }
-        if (Aturan.bentrokPasien(basis.pendaftaran_poli, pasien.id_pasien, jadwal.id_jadwal, tanggal)) {
+        if (VisitRules.bentrokPasien(basis.pendaftaran_poli, pasien.id_pasien, jadwal.id_jadwal, tanggal)) {
             return gagal("Anda sudah terdaftar pada jadwal dan tanggal yang sama.");
         }
         int terpakai = 0;
@@ -495,7 +495,7 @@ final class Toko {
         if (terpakai >= jadwal.kuota_maksimal) {
             return gagal("Kuota jadwal ini sudah penuh.");
         }
-        if (Aturan.bentrokNomorAntrean(basis.pendaftaran_poli, jadwal.id_jadwal, tanggal, nomor)) {
+        if (VisitRules.bentrokNomorAntrean(basis.pendaftaran_poli, jadwal.id_jadwal, tanggal, nomor)) {
             return gagal("Nomor antrean bentrok. Coba sekali lagi.");
         }
         Dokter dokter = null;
@@ -517,9 +517,9 @@ final class Toko {
         if (dokter == null || poli == null) {
             return gagal("Dokter atau poliklinik tidak ditemukan.");
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         long idPendaftaran = nextId(basis.pendaftaran_poli, row -> ((Daftar) row).id_pendaftaran);
-        String estimasi = Aturan.estimasiJamMasuk(tanggal, jadwal.jam_mulai, nomor, dokter.rata_waktu_periksa_menit);
+        String estimasi = VisitRules.estimasiJamMasuk(tanggal, jadwal.jam_mulai, nomor, dokter.rata_waktu_periksa_menit);
         Daftar daftar = new Daftar();
         daftar.id_pendaftaran = idPendaftaran;
         daftar.id_pasien = pasien.id_pasien;
@@ -543,8 +543,8 @@ final class Toko {
         periksa.created_at = sekarang;
         periksa.updated_at = sekarang;
         basis.pemeriksaan.add(periksa);
-        Aturan.KonteksPesan ctx = new Aturan.KonteksPesan().poli(poli.nama_poli).tanggal(Tampilan.formatTanggal(tanggal))
-                .jam(Tampilan.formatJam(estimasi)).nomor(nomor);
+        VisitRules.KonteksPesan ctx = new VisitRules.KonteksPesan().poli(poli.nama_poli).tanggal(ScreenText.formatTanggal(tanggal))
+                .jam(ScreenText.formatJam(estimasi)).nomor(nomor);
         kirimPesan(pasien.id_pasien, idPendaftaran, "Konfirmasi Pendaftaran", ctx);
         kirimPesan(pasien.id_pasien, idPendaftaran, "Pengingat Kunjungan", ctx);
         catat(actor.id_user, "DAFTAR_POLI", "pendaftaran_poli", idPendaftaran, "Antrean " + nomor + " " + poli.nama_poli);
@@ -567,7 +567,7 @@ final class Toko {
         if (keluhan == null || keluhan.trim().isEmpty()) {
             return gagal("Keluhan tidak boleh kosong.");
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         kunjungan.pemeriksaan.keluhan = keluhan.trim();
         kunjungan.pemeriksaan.updated_at = sekarang;
         kunjungan.pendaftaran.updated_at = sekarang;
@@ -588,7 +588,7 @@ final class Toko {
             return gagal("Pemeriksaan sudah dikunci.");
         }
         kunjungan.pendaftaran.catatan_pasien = catatan == null || catatan.trim().isEmpty() ? null : catatan.trim();
-        kunjungan.pendaftaran.updated_at = Aturan.sekarangIso();
+        kunjungan.pendaftaran.updated_at = VisitRules.sekarangIso();
         emit();
         return baik(null);
     }
@@ -608,12 +608,12 @@ final class Toko {
         if ("Batal".equals(kunjungan.pendaftaran.status_antrean)) {
             return gagal("Pendaftaran dibatalkan.");
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         kunjungan.pendaftaran.waktu_check_in = sekarang;
         kunjungan.pendaftaran.updated_at = sekarang;
-        kirimPesan(kunjungan.idPasien, idPendaftaran, "Pengingat Kunjungan", new Aturan.KonteksPesan()
+        kirimPesan(kunjungan.idPasien, idPendaftaran, "Pengingat Kunjungan", new VisitRules.KonteksPesan()
                 .nomor(kunjungan.pendaftaran.nomor_antrean)
-                .jam(Tampilan.formatJam(kunjungan.pendaftaran.estimasi_jam_masuk))
+                .jam(ScreenText.formatJam(kunjungan.pendaftaran.estimasi_jam_masuk))
                 .mode("checkin"));
         emit();
         return baik(null);
@@ -635,7 +635,7 @@ final class Toko {
         if ("Batal".equals(kunjungan.pendaftaran.status_antrean)) {
             return gagal("Pendaftaran sudah dibatalkan.");
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         kunjungan.pendaftaran.status_antrean = "Batal";
         kunjungan.pendaftaran.updated_at = sekarang;
         if (kunjungan.resep != null && !"Selesai Diambil".equals(kunjungan.resep.status_resep)) {
@@ -667,7 +667,7 @@ final class Toko {
         pemeriksaan.suhu_tubuh = suhuAngka;
         pemeriksaan.berat_badan = beratAngka;
         pemeriksaan.tinggi_badan = tinggiAngka;
-        pemeriksaan.updated_at = Aturan.sekarangIso();
+        pemeriksaan.updated_at = VisitRules.sekarangIso();
         catat(actor.id_user, "SIMPAN_VITAL", "pemeriksaan", pemeriksaan.id_pemeriksaan, "Tanda vital diperbarui");
         emit();
         return baik(null);
@@ -688,7 +688,7 @@ final class Toko {
         if (kosong(diagnosis) || kosong(catatan) || kosong(tindakan)) {
             return gagal("Diagnosis, tindakan, dan catatan pemeriksaan wajib diisi.");
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         Periksa pemeriksaan = kunjungan.pemeriksaan;
         pemeriksaan.diagnosis = diagnosis.trim();
         pemeriksaan.catatan_dokter = catatan.trim();
@@ -725,11 +725,11 @@ final class Toko {
             return gagal("Obat tidak ditemukan.");
         }
         if (aturan == null || aturan.trim().isEmpty()) {
-            return gagal("Aturan pakai wajib diisi.");
+            return gagal("VisitRules pakai wajib diisi.");
         }
         int qty = Math.max(1, jumlah);
         Resep resep = pastikanResep(kunjungan);
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         Detail ada = null;
         for (Detail row : basis.detail_resep) {
             if (row.id_resep == resep.id_resep && row.id_obat == idObat) {
@@ -813,7 +813,7 @@ final class Toko {
             return gagal("Stok rumah sakit tidak mencukupi untuk seluruh item. Pilih apotek luar atau hubungi farmasi.");
         }
         Resep resep = kunjungan.resep;
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         resep.pilihan_penebusan = "apotek_rs".equals(pilihan) ? "Apotek RS" : "Apotek Luar";
         resep.updated_at = sekarang;
         if ("apotek_rs".equals(pilihan)) {
@@ -828,8 +828,8 @@ final class Toko {
             for (DetailTampil row : kunjungan.detail) {
                 jenis.add(row.obat.jenis_obat);
             }
-            int menit = Aturan.estimasiFarmasiMenit(antrian, jenis);
-            resep.estimasi_jam_selesai = Aturan.tambahJam(sekarang, menit / 60d);
+            int menit = VisitRules.estimasiFarmasiMenit(antrian, jenis);
+            resep.estimasi_jam_selesai = VisitRules.tambahJam(sekarang, menit / 60d);
         }
         catat(actor.id_user, "PILIH_TEBUS", "resep", resep.id_resep, resep.pilihan_penebusan);
         if ("apotek_luar".equals(pilihan)) {
@@ -841,7 +841,7 @@ final class Toko {
                 }
             }
             kirimPesan(kunjungan.idPasien, idPendaftaran, "Obat Siap",
-                    new Aturan.KonteksPesan().nomor(kunjungan.pendaftaran.nomor_antrean).selesai(true));
+                    new VisitRules.KonteksPesan().nomor(kunjungan.pendaftaran.nomor_antrean).selesai(true));
         }
         emit();
         return baik(null);
@@ -889,7 +889,7 @@ final class Toko {
         if (!"Siap Diambil".equals(resep.status_resep) || kunjungan.tahap < 9) {
             return gagal("Obat belum berstatus siap diambil.");
         }
-        if (!Aturan.qrMasihBerlaku(resep.kadaluarsa_qr, kunjungan.qrDipakai)) {
+        if (!VisitRules.qrMasihBerlaku(resep.kadaluarsa_qr, kunjungan.qrDipakai)) {
             return gagal("QR kedaluwarsa atau sudah dipakai. Tolak pengambilan.");
         }
         if ("keluarga".equals(pengambil)) {
@@ -925,7 +925,7 @@ final class Toko {
             return gagal("Stok tidak berubah.");
         }
         obat.stok_rs = tujuan;
-        obat.updated_at = Aturan.sekarangIso();
+        obat.updated_at = VisitRules.sekarangIso();
         catatMutasi(obat.id_obat, actor.id_user, "Penyesuaian", Math.abs(tujuan - sebelum), sebelum, tujuan,
                 keterangan == null || keterangan.trim().isEmpty() ? "Penyesuaian stok fisik" : keterangan.trim());
         catat(actor.id_user, "SESUAIKAN_STOK", "obat", obat.id_obat, sebelum + " -> " + tujuan);
@@ -960,7 +960,7 @@ final class Toko {
                 return gagal("Kode Kemenkes sudah dipakai.");
             }
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         if (idObat == null) {
             long id = nextId(basis.obat, row -> ((Obat) row).id_obat);
             Obat obat = new Obat();
@@ -1022,7 +1022,7 @@ final class Toko {
             return gagal("Obat tidak ditemukan.");
         }
         obat.is_active = false;
-        obat.updated_at = Aturan.sekarangIso();
+        obat.updated_at = VisitRules.sekarangIso();
         catat(actor.id_user, "NONAKTIF_OBAT", "obat", obat.id_obat, obat.kode_kemenkes);
         emit();
         return baik(null);
@@ -1075,7 +1075,7 @@ final class Toko {
                 return gagal("Jam ini bertumpuk dengan jadwal Anda yang lain.");
             }
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         if (idJadwal == null) {
             long id = nextId(basis.jadwal_dokter, row -> ((Jadwal) row).id_jadwal);
             Jadwal baru = new Jadwal();
@@ -1104,7 +1104,7 @@ final class Toko {
             return gagal("Jadwal tidak ditemukan.");
         }
         int terpakai = 0;
-        String hariIni = Aturan.tanggalIso();
+        String hariIni = VisitRules.tanggalIso();
         for (Daftar row : basis.pendaftaran_poli) {
             if (row.id_jadwal == jadwal.id_jadwal && hariIni.equals(row.tanggal_kunjungan) && !"Batal".equals(row.status_antrean)) {
                 terpakai++;
@@ -1140,14 +1140,14 @@ final class Toko {
         if (jadwal == null) {
             return gagal("Jadwal tidak ditemukan.");
         }
-        String hariIni = Aturan.tanggalIso();
+        String hariIni = VisitRules.tanggalIso();
         for (Daftar row : basis.pendaftaran_poli) {
             if (row.id_jadwal == jadwal.id_jadwal && hariIni.equals(row.tanggal_kunjungan) && !"Batal".equals(row.status_antrean)) {
                 return gagal("Jadwal ini masih punya antrean hari ini.");
             }
         }
         jadwal.is_active = false;
-        jadwal.updated_at = Aturan.sekarangIso();
+        jadwal.updated_at = VisitRules.sekarangIso();
         catat(actor.id_user, "NONAKTIF_JADWAL", "jadwal_dokter", jadwal.id_jadwal, jadwal.hari);
         emit();
         return baik(null);
@@ -1190,7 +1190,7 @@ final class Toko {
 
     private String terapkanTahap(Kunjungan kunjungan, int tahap, long actorId) {
         Daftar pendaftaran = kunjungan.pendaftaran;
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         if (tahap == 4) {
             pendaftaran.status_antrean = "Masuk Ruangan";
             pendaftaran.updated_at = sekarang;
@@ -1199,7 +1199,7 @@ final class Toko {
             }
             kunjungan.pemeriksaan.updated_at = sekarang;
             kirimPesan(kunjungan.idPasien, pendaftaran.id_pendaftaran, "Pengingat Kunjungan",
-                    new Aturan.KonteksPesan().nomor(pendaftaran.nomor_antrean).mode("panggil"));
+                    new VisitRules.KonteksPesan().nomor(pendaftaran.nomor_antrean).mode("panggil"));
         }
         if (tahap == 5) {
             pendaftaran.status_antrean = "Selesai Pemeriksaan";
@@ -1211,7 +1211,7 @@ final class Toko {
             kunjungan.pemeriksaan.updated_at = sekarang;
             ubahStatusResep(resep, "Menunggu Pilihan", actorId, "E-resep dikirim ke pasien");
             kirimPesan(kunjungan.idPasien, pendaftaran.id_pendaftaran, "QR Resep",
-                    new Aturan.KonteksPesan().nomor(pendaftaran.nomor_antrean));
+                    new VisitRules.KonteksPesan().nomor(pendaftaran.nomor_antrean));
         }
         if (tahap == 7 && kunjungan.resep != null) {
             ubahStatusResep(kunjungan.resep, "Antrean Farmasi", actorId, "Masuk antrean farmasi");
@@ -1221,12 +1221,12 @@ final class Toko {
         }
         if (tahap == 9 && kunjungan.resep != null) {
             Resep resep = kunjungan.resep;
-            resep.kadaluarsa_qr = Aturan.tambahJam(sekarang, 24);
+            resep.kadaluarsa_qr = VisitRules.tambahJam(sekarang, 24);
             resep.updated_at = sekarang;
             buatPin(kunjungan, resep.kadaluarsa_qr);
             ubahStatusResep(resep, "Siap Diambil", actorId, "Siap di farmasi");
             kirimPesan(kunjungan.idPasien, pendaftaran.id_pendaftaran, "Obat Siap",
-                    new Aturan.KonteksPesan().nomor(pendaftaran.nomor_antrean));
+                    new VisitRules.KonteksPesan().nomor(pendaftaran.nomor_antrean));
         }
         if (tahap == 10 && kunjungan.resep != null) {
             Hasil<Void> hasil = selesaiAmbil(kunjungan, actorId, "pasien");
@@ -1254,7 +1254,7 @@ final class Toko {
                 return gagal("Stok rumah sakit tidak cukup untuk menyerahkan resep ini.");
             }
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         Pasien pasien = null;
         for (Pasien row : basis.pasien) {
             if (row.id_pasien == kunjungan.idPasien) {
@@ -1286,7 +1286,7 @@ final class Toko {
             pasien.updated_at = sekarang;
         }
         kirimPesan(kunjungan.idPasien, kunjungan.pendaftaran.id_pendaftaran, "Obat Siap",
-                new Aturan.KonteksPesan().nomor(kunjungan.pendaftaran.nomor_antrean).selesai(true));
+                new VisitRules.KonteksPesan().nomor(kunjungan.pendaftaran.nomor_antrean).selesai(true));
         catat(actorId, "SERAH_OBAT", "pengambilan_obat", resep.id_resep, pengambil);
         return baik(null);
     }
@@ -1297,11 +1297,11 @@ final class Toko {
                 return row;
             }
         }
-        String sekarang = Aturan.sekarangIso();
+        String sekarang = VisitRules.sekarangIso();
         Resep resep = new Resep();
         resep.id_resep = nextId(basis.resep, row -> ((Resep) row).id_resep);
         resep.id_pendaftaran = kunjungan.pendaftaran.id_pendaftaran;
-        resep.kode_qr_unik = Sandi.randomToken(12);
+        resep.kode_qr_unik = PasswordHash.randomToken(12);
         resep.waktu_diterbitkan = sekarang;
         resep.pilihan_penebusan = "Belum Memilih";
         resep.status_resep = "Menunggu Pilihan";
@@ -1318,7 +1318,7 @@ final class Toko {
             return;
         }
         resep.status_resep = baru;
-        resep.updated_at = Aturan.sekarangIso();
+        resep.updated_at = VisitRules.sekarangIso();
         catat(actorId, "UBAH_STATUS_RESEP", "resep", resep.id_resep, lama + " -> " + baru + ". " + catatan);
     }
 
@@ -1341,11 +1341,11 @@ final class Toko {
         Otp otp = new Otp();
         otp.id_otp = nextId(basis.otp_verifikasi, row -> ((Otp) row).id_otp);
         otp.id_user = pasien.id_user;
-        otp.kode_otp = Sandi.randomPin();
+        otp.kode_otp = PasswordHash.randomPin();
         otp.tujuan = pasien.no_telepon;
         otp.expired_at = kedaluwarsa;
         otp.attempt = 0;
-        otp.created_at = Aturan.sekarangIso();
+        otp.created_at = VisitRules.sekarangIso();
         basis.otp_verifikasi.add(otp);
     }
 
@@ -1373,7 +1373,7 @@ final class Toko {
             }
             int sebelum = obat.stok_rs;
             obat.stok_rs = sebelum - detail.jumlah;
-            obat.updated_at = Aturan.sekarangIso();
+            obat.updated_at = VisitRules.sekarangIso();
             catatMutasi(obat.id_obat, actorId, "Keluar", detail.jumlah, sebelum, obat.stok_rs, "Penyerahan resep " + resep.id_resep);
         }
     }
@@ -1388,11 +1388,11 @@ final class Toko {
         item.stok_sebelum = sebelum;
         item.stok_sesudah = sesudah;
         item.keterangan = keterangan;
-        item.created_at = Aturan.sekarangIso();
+        item.created_at = VisitRules.sekarangIso();
         basis.mutasi_stok.add(item);
     }
 
-    private void kirimPesan(long idPasien, Long idPendaftaran, String jenis, Aturan.KonteksPesan ctx) {
+    private void kirimPesan(long idPasien, Long idPendaftaran, String jenis, VisitRules.KonteksPesan ctx) {
         Pasien pasien = null;
         for (Pasien row : basis.pasien) {
             if (row.id_pasien == idPasien) {
@@ -1403,8 +1403,8 @@ final class Toko {
         if (pasien == null) {
             return;
         }
-        String pesan = Aturan.teksNotifikasi(jenis, ctx);
-        String sekarang = Aturan.sekarangIso();
+        String pesan = VisitRules.teksNotifikasi(jenis, ctx);
+        String sekarang = VisitRules.sekarangIso();
         Kabar item = new Kabar();
         item.id_notifikasi = nextId(basis.notifikasi, row -> ((Kabar) row).id_notifikasi);
         item.id_pasien = idPasien;
@@ -1480,7 +1480,7 @@ final class Toko {
                 if (obat == null) {
                     continue;
                 }
-                detail.add(new DetailTampil(row, obat, Aturan.statusKetersediaan(obat.stok_rs, row.jumlah)));
+                detail.add(new DetailTampil(row, obat, VisitRules.statusKetersediaan(obat.stok_rs, row.jumlah)));
             }
         }
         boolean resepTerkirim = resep != null && pemeriksaan.waktu_selesai != null && !pemeriksaan.waktu_selesai.isEmpty();
@@ -1495,7 +1495,7 @@ final class Toko {
         }
         boolean adaVital = pemeriksaan.tekanan_darah != null && !pemeriksaan.tekanan_darah.trim().isEmpty();
         boolean checkIn = pendaftaran.waktu_check_in != null && !pendaftaran.waktu_check_in.isEmpty();
-        int tahap = Aturan.hitungTahap(pendaftaran.status_antrean, checkIn, adaVital, resep, resepTerkirim);
+        int tahap = VisitRules.hitungTahap(pendaftaran.status_antrean, checkIn, adaVital, resep, resepTerkirim);
         String pin = null;
         if (resep != null && resep.kadaluarsa_qr != null) {
             for (Otp row : basis.otp_verifikasi) {
@@ -1525,7 +1525,7 @@ final class Toko {
         hasil.pemeriksaan = pemeriksaan;
         hasil.resep = resep;
         hasil.detail = detail;
-        hasil.bolehRs = Aturan.bolehTebusRs(status);
+        hasil.bolehRs = VisitRules.bolehTebusRs(status);
         hasil.tahap = tahap;
         hasil.resepTerkirim = resepTerkirim;
         hasil.qrDipakai = qrDipakai;
@@ -1542,7 +1542,7 @@ final class Toko {
         item.tabel_referensi = tabel;
         item.id_referensi = idReferensi;
         item.keterangan = keterangan;
-        item.created_at = Aturan.sekarangIso();
+        item.created_at = VisitRules.sekarangIso();
         basis.log_aktivitas.add(item);
     }
 

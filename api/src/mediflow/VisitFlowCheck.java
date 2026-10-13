@@ -5,8 +5,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /** Pemeriksaan alur yang sama dengan data uji di memori. */
-public final class UjiAlur {
-    private UjiAlur() {}
+public final class VisitFlowCheck {
+    private VisitFlowCheck() {}
 
     public static void main(String[] args) {
         jalan();
@@ -14,29 +14,29 @@ public final class UjiAlur {
     }
 
     static void jalan() {
-        sama(Aturan.estimasiJamMasuk("2026-10-06", "08:00", 5, 15), "2026-10-06T02:00:00.000Z");
-        sama(Aturan.estimasiFarmasiMenit(2, List.of("Jadi", "Racikan")), 40);
-        sama(Aturan.statusKetersediaan(0, 10), "kosong");
-        sama(Aturan.statusKetersediaan(4, 10), "sebagian");
-        sama(Aturan.statusKetersediaan(10, 10), "tersedia");
-        benar(!Aturan.bolehTebusRs(List.of("tersedia", "kosong")));
-        benar(Aturan.bolehTebusRs(List.of("tersedia", "tersedia")));
+        sama(VisitRules.estimasiJamMasuk("2026-10-06", "08:00", 5, 15), "2026-10-06T02:00:00.000Z");
+        sama(VisitRules.estimasiFarmasiMenit(2, List.of("Jadi", "Racikan")), 40);
+        sama(VisitRules.statusKetersediaan(0, 10), "kosong");
+        sama(VisitRules.statusKetersediaan(4, 10), "sebagian");
+        sama(VisitRules.statusKetersediaan(10, 10), "tersedia");
+        benar(!VisitRules.bolehTebusRs(List.of("tersedia", "kosong")));
+        benar(VisitRules.bolehTebusRs(List.of("tersedia", "tersedia")));
 
-        String pesanStok = Aturan.teksNotifikasi("QR Resep", new Aturan.KonteksPesan().nomor(1).poli("Poli Umum"));
+        String pesanStok = VisitRules.teksNotifikasi("QR Resep", new VisitRules.KonteksPesan().nomor(1).poli("Poli Umum"));
         benar(!Pattern.compile("amoxicillin|faringitis", Pattern.CASE_INSENSITIVE).matcher(pesanStok).find());
 
-        Tampilan.Panduan arahPasien = Tampilan.panduan("pasien", new Tampilan.Konteks(
+        ScreenText.Panduan arahPasien = ScreenText.panduan("pasien", new ScreenText.Konteks(
                 4, true, true, true, false, null, true, false, false));
         sama(arahPasien.faseId(), 2);
         sama(arahPasien.status(), "Sedang diperiksa");
         benar(!Pattern.compile("acc|whatsapp", Pattern.CASE_INSENSITIVE).matcher(arahPasien.tindakan()).find());
-        Tampilan.Panduan arahDokter = Tampilan.panduan("dokter", new Tampilan.Konteks(
+        ScreenText.Panduan arahDokter = ScreenText.panduan("dokter", new ScreenText.Konteks(
                 5, true, true, true, false, null, true, false, false));
         benar(arahDokter.milikAnda());
         sama(arahDokter.penghalang(), "Tambahkan minimal satu obat sebelum mengirim resep.");
 
-        Toko toko = Toko.memori();
-        Basis awal = toko.snapshot();
+        VisitStore toko = VisitStore.memori();
+        DatabaseRecords awal = toko.snapshot();
         sama(awal.poliklinik.size(), 4);
         sama(awal.obat.size(), 5);
         sama(hitung(awal.obat, obat -> obat.is_active), 4);
@@ -49,7 +49,7 @@ public final class UjiAlur {
         benar(!obatKode(awal, "OBT005").is_active);
 
         Long demo = null;
-        for (Toko.Kunjungan row : toko.kunjungan()) {
+        for (VisitStore.Kunjungan row : toko.kunjungan()) {
             if (row.idPasien == 2 && row.tahap == 4) {
                 demo = row.pendaftaran.id_pendaftaran;
                 break;
@@ -58,8 +58,8 @@ public final class UjiAlur {
         if (demo == null) {
             throw new AssertionError("Kunjungan demo tidak ada");
         }
-        Toko.Kunjungan siti = null;
-        for (Toko.Kunjungan row : toko.kunjungan()) {
+        VisitStore.Kunjungan siti = null;
+        for (VisitStore.Kunjungan row : toko.kunjungan()) {
             if ("Siti Rahayu".equals(row.pasienNama)) {
                 siti = row;
                 break;
@@ -72,7 +72,7 @@ public final class UjiAlur {
 
         benar(!toko.login("budi", "bukan-sandi", null).ok);
         pastikan(toko.login("budi", "pasien123", null));
-        Toko.Kunjungan awalKunjungan = toko.kunjunganById(demo);
+        VisitStore.Kunjungan awalKunjungan = toko.kunjunganById(demo);
         sama(awalKunjungan.tahap, 4);
         sama(awalKunjungan.poliNama, "Poli Umum");
         benar(!toko.daftar(awalKunjungan.jadwal.id_jadwal, "Batuk", null).ok);
@@ -117,7 +117,7 @@ public final class UjiAlur {
         pastikan(toko.login("farmasi01", "apotek123", null));
         pastikan(toko.majuTahap(demo));
         pastikan(toko.majuTahap(demo));
-        Toko.Kunjungan siap = toko.kunjunganById(demo);
+        VisitStore.Kunjungan siap = toko.kunjunganById(demo);
         if (siap.pinKeluarga == null) {
             throw new AssertionError("PIN keluarga belum terbit");
         }
@@ -128,7 +128,7 @@ public final class UjiAlur {
         pastikan(toko.serahkan(demo, siap.resep.kode_qr_unik, "pasien", ""));
         benar(!toko.serahkan(demo, siap.resep.kode_qr_unik, "pasien", "").ok);
 
-        Toko.Kunjungan selesai = toko.kunjunganById(demo);
+        VisitStore.Kunjungan selesai = toko.kunjunganById(demo);
         sama(selesai.tahap, 10);
         sama(selesai.resep.status_resep, "Selesai Diambil");
         benar(selesai.qrDipakai);
@@ -160,7 +160,7 @@ public final class UjiAlur {
         sama(telepon, "081298765432");
         pastikan(toko.simpanCatatan(demo, "Alergi penisilin"));
         pastikan(toko.simpanKeluhan(demo, "Batuk kering"));
-        Toko.Kunjungan catatan = toko.kunjunganById(demo);
+        VisitStore.Kunjungan catatan = toko.kunjunganById(demo);
         sama(catatan.pemeriksaan.keluhan, "Batuk kering");
         sama(catatan.pendaftaran.catatan_pasien, "Alergi penisilin");
         benar(!toko.simpanObat(null, "OBT-X", "Vitamin Tes", 3, 1000, "Tablet", "Jadi", false).ok);
@@ -204,7 +204,7 @@ public final class UjiAlur {
         toko.logout();
     }
 
-    private static <T> T pastikan(Toko.Hasil<T> hasil) {
+    private static <T> T pastikan(VisitStore.Hasil<T> hasil) {
         if (!hasil.ok) {
             throw new AssertionError(hasil.error);
         }
@@ -223,7 +223,7 @@ public final class UjiAlur {
         }
     }
 
-    private static Obat obatKode(Basis basis, String kode) {
+    private static Obat obatKode(DatabaseRecords basis, String kode) {
         for (Obat obat : basis.obat) {
             if (kode.equals(obat.kode_kemenkes)) {
                 return obat;
@@ -232,7 +232,7 @@ public final class UjiAlur {
         throw new AssertionError(kode);
     }
 
-    private static Obat cariObat(Toko toko, long id) {
+    private static Obat cariObat(VisitStore toko, long id) {
         for (Obat obat : toko.snapshot().obat) {
             if (obat.id_obat == id) {
                 return obat;

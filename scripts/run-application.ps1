@@ -26,12 +26,12 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 switch ($Perintah) {
     'periksa' {
-        & $java -cp 'api\out;api\lib\*' mediflow.UjiAlur
+        & $java -cp 'api\out;api\lib\*' mediflow.VisitFlowCheck
         exit $LASTEXITCODE
     }
     'dummy' {
         Write-Host '[mediflow] Mengganti isi 15 tabel medicflow_db dengan data uji.'
-        & $java -cp 'api\out;api\lib\*' mediflow.IsiDummy
+        & $java -cp 'api\out;api\lib\*' mediflow.LoadDemoData
         exit $LASTEXITCODE
     }
     default {
@@ -40,7 +40,7 @@ switch ($Perintah) {
                 '-NoProfile', '-Command', "Start-Sleep -Seconds 2; Start-Process 'http://127.0.0.1:8088/'"
             ) | Out-Null
         }
-        & $java -cp 'api\out;api\lib\*' mediflow.ApiServer
+        & $java -cp 'api\out;api\lib\*' mediflow.ApplicationServer
         exit $LASTEXITCODE
     }
 }

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /** JSON ringkas. Angka utuh tidak ditulis dengan ".0". */
-final class Json {
+final class JsonConverter {
     static final ObjectMapper MAPPER = new ObjectMapper();
 
     static {
@@ -35,7 +35,7 @@ final class Json {
         MAPPER.registerModule(modul);
     }
 
-    private Json() {}
+    private JsonConverter() {}
 
     static final class Rusak extends Exception {
         Rusak(String message) {
@@ -73,7 +73,7 @@ final class Json {
         return objek;
     }
 
-    /** Snapshot menerima objek tabel. Objek kosong gagal di pemeriksaan tabel, bukan di parser. */
+    /** DatabaseSnapshot menerima objek tabel. Objek kosong gagal di pemeriksaan tabel, bukan di parser. */
     static Map<String, Object> objekSnapshot(byte[] tubuh) throws Rusak {
         if (tubuh == null || tubuh.length == 0) {
             throw new Rusak("Body JSON tidak valid.");

@@ -10,7 +10,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}\\scripts\\jalankan.ps1"
+        "${workspaceFolder}\\scripts\\run-application.ps1"
       ],
       "options": {
         "cwd": "${workspaceFolder}",

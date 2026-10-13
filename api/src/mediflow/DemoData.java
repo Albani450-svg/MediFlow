@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Data uji. Akun layar masuk: budi, dokter01, admin, farmasi01. */
-final class DataUji {
+final class DemoData {
     private static final String AWAL = "2026-10-02T20:53:44.000Z";
     private static final String PASIEN_DIBUAT = "2026-10-07T03:46:17.000Z";
     private static final String HASH_PASIEN = "b3cb1bf1350e826eafc2250c570837e1ef1a0e8d6fece2c3478740670ce8fed1";
@@ -17,22 +17,22 @@ final class DataUji {
     private static final String ATURAN = "3x1 Sehari (Sesudah Makan)";
     private static final String TINDAKAN = "Rawat Jalan + Terapi Obat";
 
-    private DataUji() {}
+    private DemoData() {}
 
-    static Basis buat() {
-        return buat(ZonedDateTime.now(Aturan.ZONA));
+    static DatabaseRecords buat() {
+        return buat(ZonedDateTime.now(VisitRules.ZONA));
     }
 
-    static Basis buat(ZonedDateTime sekarang) {
-        String tanggal = Aturan.tanggalIso(sekarang);
+    static DatabaseRecords buat(ZonedDateTime sekarang) {
+        String tanggal = VisitRules.tanggalIso(sekarang);
         String kemarin3 = geser(sekarang, -3);
         String kemarin10 = geser(sekarang, -10);
         List<Jadwal> jadwal = buatJadwal();
         Jadwal hariIni = jadwalPada(jadwal, 1, tanggal);
-        String kadaluarsaSiti = Aturan.iso(sekarang.toInstant().plusSeconds(20 * 60 * 60));
+        String kadaluarsaSiti = VisitRules.iso(sekarang.toInstant().plusSeconds(20 * 60 * 60));
         String kadaluarsaLama = saat(kemarin3, "18:00");
 
-        Basis db = new Basis();
+        DatabaseRecords db = new DatabaseRecords();
         db.users.add(akun(1, "admin", HASH_ADMIN, "admin", "Administrator", "081234567890", AWAL));
         db.users.add(akun(2, "dokter01", HASH_DOKTER, "dokter", "Dr. Ahmad", "081234567891", AWAL));
         db.users.add(akun(3, "farmasi01", HASH_FARMASI, "farmasi", "Petugas Farmasi", "081234567892", AWAL));
@@ -74,10 +74,10 @@ final class DataUji {
                 periksa(15, 15, 1, "Demam naik turun disertai nyeri menelan dan batuk kering.", saat(tanggal, "08:05"),
                         "120/80", 37.8, 64, 170, "", "", null, null));
         db.notifikasi.add(pesan(1, 2, 15, "Konfirmasi Pendaftaran", "089876543210",
-                new Aturan.KonteksPesan().nomor(1).poli("Poli Umum").tanggal(tanggal).jam(Tampilan.formatJam(e1)),
+                new VisitRules.KonteksPesan().nomor(1).poli("Poli Umum").tanggal(tanggal).jam(ScreenText.formatJam(e1)),
                 saat(tanggal, "06:30")));
         db.notifikasi.add(pesan(2, 2, 15, "Pengingat Kunjungan", "089876543210",
-                new Aturan.KonteksPesan().nomor(1).poli("Poli Umum"), saat(tanggal, "07:00")));
+                new VisitRules.KonteksPesan().nomor(1).poli("Poli Umum"), saat(tanggal, "07:00")));
 
         masuk(db, daftar(14, 10, hariIni.id_jadwal, tanggal, 2, null, estimasi(tanggal, hariIni, 2), "Menunggu", null,
                 saat(tanggal, "06:40"), saat(tanggal, "06:40")),
@@ -106,7 +106,7 @@ final class DataUji {
                         "Banyak minum air.", saat(tanggal, "08:50")));
         db.resep.add(resep(2, 10, "MF-MAYA-PILIH", saat(tanggal, "08:50"), "Apotek RS", "Menunggu Pilihan", saat(tanggal, "09:20"), null));
         db.detail_resep.add(item(2, 2, 1, 2, ATURAN, null, saat(tanggal, "08:50")));
-        db.notifikasi.add(pesan(3, 7, 10, "QR Resep", "081300000005", new Aturan.KonteksPesan().nomor(6), saat(tanggal, "08:50")));
+        db.notifikasi.add(pesan(3, 7, 10, "QR Resep", "081300000005", new VisitRules.KonteksPesan().nomor(6), saat(tanggal, "08:50")));
 
         masuk(db, daftar(9, 8, hariIni.id_jadwal, tanggal, 7, saat(tanggal, "08:15"), estimasi(tanggal, hariIni, 7),
                 "Selesai Pemeriksaan", "Tidak ada alergi obat", saat(tanggal, "07:05"), saat(tanggal, "09:10")),
@@ -132,12 +132,12 @@ final class DataUji {
         db.resep.add(resep(5, 7, "MF-SITI-SIAP", saat(tanggal, "09:15"), "Apotek RS", "Siap Diambil", saat(tanggal, "09:45"), kadaluarsaSiti));
         db.detail_resep.add(item(5, 5, 1, 1, "1x1 Sehari (Malam Sebelum Tidur)", null, saat(tanggal, "09:15")));
         db.otp_verifikasi.add(otp(1, 8, "482913", "081300000001", kadaluarsaSiti, null, 0, saat(tanggal, "09:15")));
-        db.notifikasi.add(pesan(4, 3, 7, "Obat Siap", "081300000001", new Aturan.KonteksPesan().nomor(9), saat(tanggal, "09:15")));
+        db.notifikasi.add(pesan(4, 3, 7, "Obat Siap", "081300000001", new VisitRules.KonteksPesan().nomor(9), saat(tanggal, "09:15")));
 
         Jadwal lama = jadwalPada(jadwal, 1, kemarin3);
         Jadwal luar = jadwalPada(jadwal, 1, kemarin10);
         masuk(db, daftar(6, 2, lama.id_jadwal, kemarin3, 1, saat(kemarin3, "07:45"),
-                Aturan.estimasiJamMasuk(kemarin3, lama.jam_mulai, 1, 15), "Selesai Pemeriksaan", null,
+                VisitRules.estimasiJamMasuk(kemarin3, lama.jam_mulai, 1, 15), "Selesai Pemeriksaan", null,
                 saat(kemarin3, "06:20"), saat(kemarin3, "10:00")),
                 periksa(6, 6, 1, "Batuk dan demam tiga hari.", saat(kemarin3, "08:00"),
                         "120/78", 37.4, 64, 170, "J06.9 - Infeksi Saluran Napas Atas (ISPA)", TINDAKAN,
@@ -159,10 +159,10 @@ final class DataUji {
         ambil.updated_at = saat(kemarin3, "10:00");
         db.pengambilan_obat.add(ambil);
         db.notifikasi.add(pesan(5, 2, 6, "Obat Siap", "089876543210",
-                new Aturan.KonteksPesan().nomor(1).selesai(true), saat(kemarin3, "10:00")));
+                new VisitRules.KonteksPesan().nomor(1).selesai(true), saat(kemarin3, "10:00")));
 
         masuk(db, daftar(5, 2, luar.id_jadwal, kemarin10, 1, saat(kemarin10, "08:00"),
-                Aturan.estimasiJamMasuk(kemarin10, luar.jam_mulai, 1, 15), "Selesai Pemeriksaan", "Alergi debu.",
+                VisitRules.estimasiJamMasuk(kemarin10, luar.jam_mulai, 1, 15), "Selesai Pemeriksaan", "Alergi debu.",
                 saat(kemarin10, "07:00"), saat(kemarin10, "09:00")),
                 periksa(5, 5, 1, "Gatal di kulit setelah debu.", saat(kemarin10, "08:10"),
                         "118/76", 36.6, 64, 170, "K29.7 - Gastritis / Dispepsia Akut", TINDAKAN,
@@ -198,20 +198,20 @@ final class DataUji {
     }
 
     private static String geser(ZonedDateTime asal, int hari) {
-        return asal.withZoneSameInstant(Aturan.ZONA).toLocalDate().plusDays(hari).toString();
+        return asal.withZoneSameInstant(VisitRules.ZONA).toLocalDate().plusDays(hari).toString();
     }
 
     private static String saat(String tanggal, String jam) {
         String[] bagian = jam.split(":");
         LocalTime waktu = LocalTime.of(Integer.parseInt(bagian[0]), Integer.parseInt(bagian[1]));
-        return Aturan.iso(ZonedDateTime.of(LocalDate.parse(tanggal), waktu, Aturan.ZONA).toInstant());
+        return VisitRules.iso(ZonedDateTime.of(LocalDate.parse(tanggal), waktu, VisitRules.ZONA).toInstant());
     }
 
     private static String estimasi(String tanggal, Jadwal jadwal, int nomor) {
-        return Aturan.estimasiJamMasuk(tanggal, jadwal.jam_mulai, nomor, 15);
+        return VisitRules.estimasiJamMasuk(tanggal, jadwal.jam_mulai, nomor, 15);
     }
 
-    private static void masuk(Basis db, Daftar daftar, Periksa periksa) {
+    private static void masuk(DatabaseRecords db, Daftar daftar, Periksa periksa) {
         db.pendaftaran_poli.add(daftar);
         db.pemeriksaan.add(periksa);
     }
@@ -309,7 +309,7 @@ final class DataUji {
     }
 
     private static Jadwal jadwalPada(List<Jadwal> baris, long idDokter, String tanggal) {
-        String hari = Aturan.namaHari(tanggal);
+        String hari = VisitRules.namaHari(tanggal);
         for (Jadwal row : baris) {
             if (row.id_dokter == idDokter && hari.equals(row.hari) && row.is_active) {
                 return row;
@@ -415,7 +415,7 @@ final class DataUji {
     }
 
     private static Kabar pesan(long id, long idPasien, long idPendaftaran, String jenis, String nomor,
-                               Aturan.KonteksPesan ctx, String waktu) {
+                               VisitRules.KonteksPesan ctx, String waktu) {
         Kabar item = new Kabar();
         item.id_notifikasi = id;
         item.id_pasien = idPasien;
@@ -423,7 +423,7 @@ final class DataUji {
         item.jenis_notifikasi = jenis;
         item.channel = "PWA";
         item.nomor_tujuan = nomor;
-        item.pesan = Aturan.teksNotifikasi(jenis, ctx);
+        item.pesan = VisitRules.teksNotifikasi(jenis, ctx);
         item.status = "Terkirim";
         item.waktu_dikirim = waktu;
         item.created_at = waktu;

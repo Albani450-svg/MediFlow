@@ -14,12 +14,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /** Halaman HTML dan sesi per jendela. Token ada di URL dan sessionStorage. */
-final class Situs {
+final class WebSite {
     private static final Object KUNCI = new Object();
     private static final LinkedHashMap<String, Sesi> SESI = new LinkedHashMap<>(32, 0.75f, true);
     private static final int BATAS_FORM = 2_000_000;
 
-    private Situs() {}
+    private WebSite() {}
 
     static boolean layani(HttpExchange tukar, String metode, String jalur) throws IOException {
         if (berkas(tukar, metode, jalur)) {
@@ -109,7 +109,7 @@ final class Situs {
                 return ada;
             }
         }
-        Toko toko = Toko.dariServer();
+        VisitStore toko = VisitStore.dariServer();
         synchronized (KUNCI) {
             Sesi ada = SESI.get(token);
             if (ada != null) {
@@ -129,7 +129,7 @@ final class Situs {
         synchronized (KUNCI) {
             String token;
             do {
-                token = Sandi.randomToken(16);
+                token = PasswordHash.randomToken(16);
             } while (SESI.containsKey(token));
             return token;
         }
@@ -194,7 +194,7 @@ final class Situs {
             return induk;
         }
         try {
-            Path kode = Path.of(ApiServer.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+            Path kode = Path.of(ApplicationServer.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                     .toAbsolutePath().normalize();
             for (int i = 0; i < 4 && kode != null; i++) {
                 if (Files.isRegularFile(kode.resolve("public").resolve("manifest.json"))) {
@@ -224,7 +224,7 @@ final class Situs {
 
     private static String singkat(String pesan) {
         return "<!DOCTYPE html><html lang=\"id\"><meta charset=\"utf-8\"><title>MediFlow</title><p>"
-                + Layar.e(pesan) + "</p></html>";
+                + HtmlPages.e(pesan) + "</p></html>";
     }
 
     private static Map<String, String> kueri(HttpExchange tukar) {
@@ -273,12 +273,12 @@ final class Situs {
     }
 
     private static final class Sesi {
-        final Toko toko;
-        final Layar layar;
+        final VisitStore toko;
+        final HtmlPages layar;
 
-        Sesi(String token, Toko toko) {
+        Sesi(String token, VisitStore toko) {
             this.toko = toko;
-            this.layar = new Layar(toko);
+            this.layar = new HtmlPages(toko);
             this.layar.token = token;
         }
     }

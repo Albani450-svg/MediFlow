@@ -4,7 +4,7 @@
     {
       "type": "msedge",
       "request": "launch",
-      "name": "Run PWA",
+      "name": "Run application",
       "webRoot": "${workspaceFolder}/",
       "runtimeArgs": ["--app=http://127.0.0.1:8088"],
       "preLaunchTask": "jalankan",

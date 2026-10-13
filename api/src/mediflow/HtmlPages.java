@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 /** Status layar dan HTML masuk serta beranda. Satu salinan untuk tiap sesi. */
-final class Layar {
+final class HtmlPages {
     private static final String LONCENG = "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" aria-hidden=\"true\">"
             + "<path fill=\"currentColor\" d=\"M12 3a5 5 0 0 0-5 5v2.1c0 .7-.3 1.4-.8 1.9L4.6 13.6A1.5 1.5 0 0 0 5.7 16h12.6a1.5 1.5 0 0 0 1.1-2.4l-1.6-1.6a2.7 2.7 0 0 1-.8-1.9V8a5 5 0 0 0-5-5zm0 18a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 21z\"/>"
             + "</svg>";
@@ -27,7 +27,7 @@ final class Layar {
                     "Siapkan obat, cek ulang, lalu serahkan setelah kode pasien cocok", "💊")
     );
 
-    private final Toko toko;
+    private final VisitStore toko;
     private final List<String[]> toasts = new ArrayList<>();
     private final Set<Long> dikenal = new HashSet<>();
     private final Map<Long, String> stokDraft = new HashMap<>();
@@ -52,12 +52,12 @@ final class Layar {
     private String suhu = "";
     private String berat = "";
     private String tinggi = "";
-    private String kodeIcd = Tampilan.ICD.get(0).kode();
+    private String kodeIcd = ScreenText.ICD.get(0).kode();
     private String catatan = "";
-    private String tindakanPilih = Tampilan.TINDAKAN.get(0);
+    private String tindakanPilih = ScreenText.TINDAKAN.get(0);
     private long idObat = 1;
     private int jumlahObat = 10;
-    private String aturan = Tampilan.ATURAN_PAKAI.get(0);
+    private String aturan = ScreenText.ATURAN_PAKAI.get(0);
     private String kodeSerah = "";
     private String pengambil = "pasien";
     private String pinSerah = "";
@@ -84,7 +84,7 @@ final class Layar {
     private boolean dikenalSiap;
     private Long dikenalUntuk;
 
-    Layar(Toko toko) {
+    HtmlPages(VisitStore toko) {
         this.toko = toko;
         this.waNomor = toko.nomorAkun("budi");
     }
@@ -94,7 +94,7 @@ final class Layar {
         if (aktor != null) {
             segarkan();
             if (!"pasien".equals(aktor.role)) {
-                Toko.Kunjungan kunjungan = aktif();
+                VisitStore.Kunjungan kunjungan = aktif();
                 if (kunjungan != null) {
                     try {
                         toko.catatAksesRekam(kunjungan.pendaftaran.id_pendaftaran);
@@ -126,7 +126,7 @@ final class Layar {
         if (aksi.startsWith("peran-")) {
             pilihPeran(aksi.substring("peran-".length()));
         } else if (aksi.startsWith("hapus-")) {
-            Toko.Hasil<Void> hasil = toko.hapusObat(angka(aksi.substring("hapus-".length()), 0));
+            VisitStore.Hasil<Void> hasil = toko.hapusObat(angka(aksi.substring("hapus-".length()), 0));
             if (!hasil.ok) {
                 kabar(hasil.error, true);
             }
@@ -150,20 +150,20 @@ final class Layar {
                 case "buka" -> panelTerbuka = true;
                 case "baca" -> toko.tandaiDibaca();
                 case "checkin" -> tindakanKunjungan((id, k) -> {
-                    Toko.Hasil<Void> hasil = toko.checkIn(id);
+                    VisitStore.Hasil<Void> hasil = toko.checkIn(id);
                     hasil(hasil.ok, "Check-in tercatat.", hasil.error);
                 });
                 case "batal" -> tindakanKunjungan((id, k) -> {
-                    Toko.Hasil<Void> hasil = toko.batalkan(id);
+                    VisitStore.Hasil<Void> hasil = toko.batalkan(id);
                     hasil(hasil.ok, "Pendaftaran dibatalkan. Kuota dikembalikan.", hasil.error);
                 });
                 case "keluhan" -> tindakanKunjungan((id, k) -> {
-                    Toko.Hasil<Void> simpan = toko.simpanKeluhan(id, keluhan);
+                    VisitStore.Hasil<Void> simpan = toko.simpanKeluhan(id, keluhan);
                     if (!simpan.ok) {
                         hasil(false, "", simpan.error);
                         return;
                     }
-                    Toko.Hasil<Void> catatanHasil = toko.simpanCatatan(id, catatanAlergi);
+                    VisitStore.Hasil<Void> catatanHasil = toko.simpanCatatan(id, catatanAlergi);
                     hasil(catatanHasil.ok, "Keluhan dan catatan alergi tersimpan.", catatanHasil.error);
                 });
                 case "buka-daftar" -> showDaftar = !showDaftar;
@@ -172,17 +172,17 @@ final class Layar {
                 }
                 case "daftar" -> daftarBaru();
                 case "vital" -> tindakanKunjungan((id, k) -> {
-                    Toko.Hasil<Void> hasil = toko.simpanVital(id, tensi, suhu, berat, tinggi);
+                    VisitStore.Hasil<Void> hasil = toko.simpanVital(id, tensi, suhu, berat, tinggi);
                     hasil(hasil.ok, "Tanda vital diperbarui.", hasil.error);
                 });
                 case "periksa" -> simpanDanMajuDokter();
                 case "tambah-obat" -> tindakanKunjungan((id, k) -> {
-                    Toko.Hasil<Void> hasil = toko.tambahObat(id, idObat, jumlahObat, aturan);
+                    VisitStore.Hasil<Void> hasil = toko.tambahObat(id, idObat, jumlahObat, aturan);
                     hasil(hasil.ok, "Item resep ditambahkan.", hasil.error);
                 });
                 case "tebus" -> tindakanKunjungan((id, k) -> {
                     String pilihan = teks(form.get("pilihan"));
-                    Toko.Hasil<Void> hasil = toko.pilihTebus(id, pilihan);
+                    VisitStore.Hasil<Void> hasil = toko.pilihTebus(id, pilihan);
                     String sukses = "apotek_luar".equals(pilihan)
                             ? "Resep dapat ditebus di apotek luar."
                             : "Anda memilih tebus di apotek rumah sakit.";
@@ -190,7 +190,7 @@ final class Layar {
                 });
                 case "maju" -> tindakanKunjungan((id, k) -> {
                     int dari = k.tahap;
-                    Toko.Hasil<Void> hasil = toko.majuTahap(id);
+                    VisitStore.Hasil<Void> hasil = toko.majuTahap(id);
                     if (hasil.ok && dari == 5) {
                         tampilkanWa(k.noTelepon);
                     }
@@ -200,7 +200,7 @@ final class Layar {
                     hasil(hasil.ok, sukses, hasil.error);
                 });
                 case "serah" -> tindakanKunjungan((id, k) -> {
-                    Toko.Hasil<Void> hasil = toko.serahkan(id, kodeSerah, pengambil, pinSerah);
+                    VisitStore.Hasil<Void> hasil = toko.serahkan(id, kodeSerah, pengambil, pinSerah);
                     hasil(hasil.ok, "Obat diserahkan. Stok berkurang dan QR tidak bisa dipakai lagi.", hasil.error);
                 });
                 case "stok" -> sesuaikan();
@@ -347,7 +347,7 @@ final class Layar {
         if ("pasien".equals(peran) && kosong(nomor)) {
             nomor = toko.nomorAkun(akun.username);
         }
-        Toko.Hasil<Void> hasil = toko.login(akun.username, sandi, "pasien".equals(peran) ? nomor : null);
+        VisitStore.Hasil<Void> hasil = toko.login(akun.username, sandi, "pasien".equals(peran) ? nomor : null);
         if (!hasil.ok) {
             kabar(hasil.error, true);
             tujuan = "/";
@@ -386,9 +386,9 @@ final class Layar {
     }
 
     private void daftarBaru() {
-        List<Toko.Slot> slot = toko.slotHari(Aturan.tanggalIso(), idPoli);
-        Toko.Slot pilih = null;
-        for (Toko.Slot item : slot) {
+        List<VisitStore.Slot> slot = toko.slotHari(VisitRules.tanggalIso(), idPoli);
+        VisitStore.Slot pilih = null;
+        for (VisitStore.Slot item : slot) {
             if (item.jadwal.id_jadwal == idJadwal) {
                 pilih = item;
             }
@@ -400,7 +400,7 @@ final class Layar {
             kabar("Tidak ada jadwal untuk poli ini hari ini.", true);
             return;
         }
-        Toko.Hasil<Long> hasil = toko.daftar(pilih.jadwal.id_jadwal, keluhanBaru, catatanDaftar);
+        VisitStore.Hasil<Long> hasil = toko.daftar(pilih.jadwal.id_jadwal, keluhanBaru, catatanDaftar);
         if (!hasil.ok) {
             hasil(false, "", hasil.error);
             return;
@@ -413,21 +413,21 @@ final class Layar {
     }
 
     private void simpanDanMajuDokter() {
-        Toko.Kunjungan kunjungan = aktif();
+        VisitStore.Kunjungan kunjungan = aktif();
         if (kunjungan == null) {
             kabar("Kunjungan tidak ditemukan.", true);
             return;
         }
         long id = kunjungan.pendaftaran.id_pendaftaran;
-        String diagnosis = kodeIcd + " - " + Tampilan.icdNama(kodeIcd);
-        Toko.Hasil<Void> simpan = toko.simpanPemeriksaan(id, diagnosis, catatan, tindakanPilih);
+        String diagnosis = kodeIcd + " - " + ScreenText.icdNama(kodeIcd);
+        VisitStore.Hasil<Void> simpan = toko.simpanPemeriksaan(id, diagnosis, catatan, tindakanPilih);
         if (!simpan.ok) {
             hasil(false, "", simpan.error);
             return;
         }
         if (kunjungan.tahap == 4 || kunjungan.tahap == 5) {
             int dari = kunjungan.tahap;
-            Toko.Hasil<Void> maju = toko.majuTahap(id);
+            VisitStore.Hasil<Void> maju = toko.majuTahap(id);
             if (maju.ok && dari == 5) {
                 tampilkanWa(kunjungan.noTelepon);
             }
@@ -451,12 +451,12 @@ final class Layar {
                 nama = obat.nama_obat;
             }
         }
-        Toko.Hasil<Void> hasil = toko.sesuaikanStok(stokId, (int) angka(stokNilai, 0), "Hitung ulang stok fisik");
+        VisitStore.Hasil<Void> hasil = toko.sesuaikanStok(stokId, (int) angka(stokNilai, 0), "Hitung ulang stok fisik");
         hasil(hasil.ok, "Stok " + nama + " disesuaikan.", hasil.error);
     }
 
     private void simpanObatForm() {
-        Toko.Hasil<Long> hasil = toko.simpanObat(obatEdit == 0 ? null : obatEdit, obatKode, obatNama,
+        VisitStore.Hasil<Long> hasil = toko.simpanObat(obatEdit == 0 ? null : obatEdit, obatKode, obatNama,
                 angkaDouble(obatStok), angkaDouble(obatHarga), obatSatuan, obatJenis, obatBpjs);
         if (!hasil.ok) {
             hasil(false, "", hasil.error);
@@ -490,7 +490,7 @@ final class Layar {
                 nama = obat.nama_obat;
             }
         }
-        Toko.Hasil<Void> hasil = toko.nonaktifkanObat(id);
+        VisitStore.Hasil<Void> hasil = toko.nonaktifkanObat(id);
         if (obatEdit == id) {
             resetObat();
         }
@@ -509,7 +509,7 @@ final class Layar {
     }
 
     private void simpanJadwalForm() {
-        Toko.Hasil<Long> hasil = toko.simpanJadwal(jadwalEdit == 0 ? null : jadwalEdit, jadwalHari, jadwalMulai,
+        VisitStore.Hasil<Long> hasil = toko.simpanJadwal(jadwalEdit == 0 ? null : jadwalEdit, jadwalHari, jadwalMulai,
                 jadwalSelesai, angkaDouble(jadwalKuota));
         if (!hasil.ok) {
             hasil(false, "", hasil.error);
@@ -526,8 +526,8 @@ final class Layar {
             }
             jadwalEdit = jadwal.id_jadwal;
             jadwalHari = teks(jadwal.hari);
-            jadwalMulai = Aturan.jamPendek(jadwal.jam_mulai);
-            jadwalSelesai = Aturan.jamPendek(jadwal.jam_selesai);
+            jadwalMulai = VisitRules.jamPendek(jadwal.jam_mulai);
+            jadwalSelesai = VisitRules.jamPendek(jadwal.jam_selesai);
             jadwalKuota = Integer.toString(jadwal.kuota_maksimal);
             return;
         }
@@ -540,7 +540,7 @@ final class Layar {
                 hari = jadwal.hari;
             }
         }
-        Toko.Hasil<Void> hasil = toko.nonaktifkanJadwal(id);
+        VisitStore.Hasil<Void> hasil = toko.nonaktifkanJadwal(id);
         if (jadwalEdit == id) {
             resetJadwal();
         }
@@ -564,11 +564,11 @@ final class Layar {
     }
 
     private interface AksiKunjungan {
-        void jalankan(long id, Toko.Kunjungan kunjungan);
+        void jalankan(long id, VisitStore.Kunjungan kunjungan);
     }
 
     private void tindakanKunjungan(AksiKunjungan aksi) {
-        Toko.Kunjungan kunjungan = aktif();
+        VisitStore.Kunjungan kunjungan = aktif();
         if (kunjungan == null) {
             kabar("Kunjungan tidak ditemukan.", true);
             return;
@@ -577,7 +577,7 @@ final class Layar {
     }
 
     private void segarkan() {
-        Toko.Kunjungan kunjungan = aktif();
+        VisitStore.Kunjungan kunjungan = aktif();
         String kunci = kunjungan == null ? "" : kunjungan.pendaftaran.id_pendaftaran + ":" + kunjungan.tahap;
         if (kunci.equals(formKunci)) {
             return;
@@ -592,8 +592,8 @@ final class Layar {
         }
         Periksa periksa = kunjungan.pemeriksaan;
         String diagnosis = teks(periksa.diagnosis);
-        kodeIcd = Tampilan.ICD.get(0).kode();
-        for (Tampilan.Kode item : Tampilan.ICD) {
+        kodeIcd = ScreenText.ICD.get(0).kode();
+        for (ScreenText.Kode item : ScreenText.ICD) {
             if (diagnosis.startsWith(item.kode())) {
                 kodeIcd = item.kode();
                 break;
@@ -603,11 +603,11 @@ final class Layar {
         String catatanPasien = kunjungan.pendaftaran.catatan_pasien == null ? "" : kunjungan.pendaftaran.catatan_pasien.trim();
         catatanAlergi = !catatanPasien.isEmpty() && !catatanPasien.equals(keluhan.trim()) ? catatanPasien : "";
         tensi = kosong(periksa.tekanan_darah) ? "120/80" : periksa.tekanan_darah;
-        suhu = periksa.suhu_tubuh == null ? "36.8" : Tampilan.angkaTampil(periksa.suhu_tubuh);
-        berat = periksa.berat_badan == null ? "60" : Tampilan.angkaTampil(periksa.berat_badan);
-        tinggi = periksa.tinggi_badan == null ? "165" : Tampilan.angkaTampil(periksa.tinggi_badan);
+        suhu = periksa.suhu_tubuh == null ? "36.8" : ScreenText.angkaTampil(periksa.suhu_tubuh);
+        berat = periksa.berat_badan == null ? "60" : ScreenText.angkaTampil(periksa.berat_badan);
+        tinggi = periksa.tinggi_badan == null ? "165" : ScreenText.angkaTampil(periksa.tinggi_badan);
         catatan = teks(periksa.catatan_dokter);
-        tindakanPilih = kosong(periksa.tindakan) ? Tampilan.TINDAKAN.get(0) : periksa.tindakan;
+        tindakanPilih = kosong(periksa.tindakan) ? ScreenText.TINDAKAN.get(0) : periksa.tindakan;
         List<Obat> obat = toko.obatAktif();
         idObat = obat.isEmpty() ? 1 : obat.get(0).id_obat;
     }
@@ -616,9 +616,9 @@ final class Layar {
         if (!aktorSama()) {
             return;
         }
-        List<Toko.KabarTampil> sekarang = toko.notifikasiUser(null);
+        List<VisitStore.KabarTampil> sekarang = toko.notifikasiUser(null);
         Set<Long> ids = new HashSet<>();
-        for (Toko.KabarTampil item : sekarang) {
+        for (VisitStore.KabarTampil item : sekarang) {
             ids.add(item.baris.id_notifikasi);
         }
         for (Long id : dikenal) {
@@ -629,12 +629,12 @@ final class Layar {
             }
         }
         List<String[]> masuk = new ArrayList<>();
-        for (Toko.KabarTampil item : sekarang) {
+        for (VisitStore.KabarTampil item : sekarang) {
             if (!dikenal.add(item.baris.id_notifikasi)) {
                 continue;
             }
             masuk.add(new String[] {
-                    Aturan.judulNotifikasi(item.baris.jenis_notifikasi, item.baris.pesan),
+                    VisitRules.judulNotifikasi(item.baris.jenis_notifikasi, item.baris.pesan),
                     teks(item.baris.pesan)
             });
         }
@@ -658,20 +658,20 @@ final class Layar {
         dikenal.clear();
         dikenalUntuk = id;
         dikenalSiap = true;
-        for (Toko.KabarTampil item : toko.notifikasiUser(null)) {
+        for (VisitStore.KabarTampil item : toko.notifikasiUser(null)) {
             dikenal.add(item.baris.id_notifikasi);
         }
         return false;
     }
 
-    private List<Toko.Kunjungan> daftarPeran() {
-        List<Toko.Kunjungan> hasil = new ArrayList<>();
+    private List<VisitStore.Kunjungan> daftarPeran() {
+        List<VisitStore.Kunjungan> hasil = new ArrayList<>();
         Pengguna aktor = toko.userAktif();
         if (aktor == null) {
             return hasil;
         }
-        String hari = Aturan.tanggalIso();
-        for (Toko.Kunjungan item : toko.kunjungan()) {
+        String hari = VisitRules.tanggalIso();
+        for (VisitStore.Kunjungan item : toko.kunjungan()) {
             if ("pasien".equals(aktor.role)) {
                 if (item.idUserPasien == aktor.id_user) {
                     hasil.add(item);
@@ -693,14 +693,14 @@ final class Layar {
         return hasil;
     }
 
-    private Toko.Kunjungan aktif() {
-        List<Toko.Kunjungan> daftar = daftarPeran();
-        for (Toko.Kunjungan item : daftar) {
+    private VisitStore.Kunjungan aktif() {
+        List<VisitStore.Kunjungan> daftar = daftarPeran();
+        for (VisitStore.Kunjungan item : daftar) {
             if (item.pendaftaran.id_pendaftaran == selectedId) {
                 return item;
             }
         }
-        for (Toko.Kunjungan item : daftar) {
+        for (VisitStore.Kunjungan item : daftar) {
             if (!item.selesai && !"Batal".equals(item.pendaftaran.status_antrean)) {
                 selectedId = item.pendaftaran.id_pendaftaran;
                 return item;
@@ -713,9 +713,9 @@ final class Layar {
         return daftar.get(0);
     }
 
-    private Tampilan.Konteks konteks(Toko.Kunjungan kunjungan) {
+    private ScreenText.Konteks konteks(VisitStore.Kunjungan kunjungan) {
         if (kunjungan == null) {
-            return new Tampilan.Konteks(0, false, false, false, false, null, true, false, false);
+            return new ScreenText.Konteks(0, false, false, false, false, null, true, false, false);
         }
         String pilihan = null;
         if (kunjungan.resep != null) {
@@ -728,13 +728,13 @@ final class Layar {
         boolean checkIn = !kosong(kunjungan.pendaftaran.waktu_check_in);
         boolean adaKeluhan = kunjungan.pemeriksaan != null && !kosong(kunjungan.pemeriksaan.keluhan);
         boolean adaVital = kunjungan.pemeriksaan != null && !kosong(kunjungan.pemeriksaan.tekanan_darah);
-        return new Tampilan.Konteks(kunjungan.tahap, checkIn, adaKeluhan, adaVital,
+        return new ScreenText.Konteks(kunjungan.tahap, checkIn, adaKeluhan, adaVital,
                 kunjungan.detail != null && !kunjungan.detail.isEmpty(), pilihan, kunjungan.bolehRs,
                 "Batal".equals(kunjungan.pendaftaran.status_antrean), kunjungan.selesai);
     }
 
-    private Tampilan.Panduan panduan(String role, Toko.Kunjungan kunjungan) {
-        return Tampilan.panduan(role, konteks(kunjungan));
+    private ScreenText.Panduan panduan(String role, VisitStore.Kunjungan kunjungan) {
+        return ScreenText.panduan(role, konteks(kunjungan));
     }
 
     private String halamanMasuk() {
@@ -777,7 +777,7 @@ final class Layar {
     private String aplikasi(Pengguna aktor) {
         String role = aktor.role;
         String tabAktif = "pasien".equals(role) && "data".equals(tab) ? "main" : tab;
-        Toko.Kunjungan kunjungan = aktif();
+        VisitStore.Kunjungan kunjungan = aktif();
         StringBuilder sb = new StringBuilder();
         sb.append("<div class=\"app\">");
         if (!waToast.isEmpty()) {
@@ -823,8 +823,8 @@ final class Layar {
         return sb.toString();
     }
 
-    private String header(String role, Pengguna aktor, Toko.Kunjungan kunjungan) {
-        Tampilan.Panduan info = panduan(role, kunjungan);
+    private String header(String role, Pengguna aktor, VisitStore.Kunjungan kunjungan) {
+        ScreenText.Panduan info = panduan(role, kunjungan);
         String sub;
         if ("pasien".equals(role)) {
             sub = "Pasien • " + teks(aktor.nama_lengkap);
@@ -848,7 +848,7 @@ final class Layar {
         };
         String faseNama = "Selesai";
         boolean ketemu = false;
-        for (Tampilan.Fase fase : Tampilan.FASE) {
+        for (ScreenText.Fase fase : ScreenText.FASE) {
             if (fase.id() == info.faseId()) {
                 faseNama = fase.nama();
                 ketemu = true;
@@ -878,7 +878,7 @@ final class Layar {
         if (kunjungan == null) {
             sb.append("Antrean</span><h2>—</h2><p>").append(e(judul)).append("</p><small>").append(e(kosongTeks)).append("</small>");
         } else {
-            sb.append(e(kunjungan.poliNama)).append(" • ").append(e(Tampilan.labelPenjamin(kunjungan.nomorBpjs)));
+            sb.append(e(kunjungan.poliNama)).append(" • ").append(e(ScreenText.labelPenjamin(kunjungan.nomorBpjs)));
             sb.append("</span><h2>Antrean ").append(kunjungan.pendaftaran.nomor_antrean).append("</h2><p>").append(e(judul));
             sb.append("</p><small>Estimasi masuk ").append(e(jam(kunjungan.pendaftaran.estimasi_jam_masuk)));
             sb.append(" • ").append(e(kunjungan.dokterNama)).append("</small>");
@@ -889,11 +889,11 @@ final class Layar {
         return sb.toString();
     }
 
-    private String banner(String role, Toko.Kunjungan kunjungan) {
-        Tampilan.Panduan info = panduan(role, kunjungan);
+    private String banner(String role, VisitStore.Kunjungan kunjungan) {
+        ScreenText.Panduan info = panduan(role, kunjungan);
         boolean selesai = "Kunjungan selesai".equals(info.status());
         StringBuilder sb = new StringBuilder("<div class=\"role-banner\"><div class=\"fase-track\" aria-label=\"Bagian kunjungan\">");
-        for (Tampilan.Fase fase : Tampilan.FASE) {
+        for (ScreenText.Fase fase : ScreenText.FASE) {
             String kelas = selesai || info.faseId() > fase.id() ? "done" : info.faseId() == fase.id() ? "now" : "";
             sb.append("<span");
             if (!kelas.isEmpty()) {
@@ -909,8 +909,8 @@ final class Layar {
         return sb.toString();
     }
 
-    private String pemilih(Toko.Kunjungan kunjungan) {
-        List<Toko.Kunjungan> daftar = daftarPeran();
+    private String pemilih(VisitStore.Kunjungan kunjungan) {
+        List<VisitStore.Kunjungan> daftar = daftarPeran();
         if (daftar.size() < 2) {
             return "";
         }
@@ -918,17 +918,17 @@ final class Layar {
         sb.append("<form class=\"form-group span-all\" method=\"post\" action=\"/tindakan\">");
         sb.append(sembunyi("sesi", token)).append(sembunyi("aksi", "pilih"));
         sb.append("<label class=\"form-label\">Kunjungan</label><select class=\"select-field\" name=\"id\" onchange=\"this.form.submit()\">");
-        for (Toko.Kunjungan item : daftar) {
+        for (VisitStore.Kunjungan item : daftar) {
             String nilai = Long.toString(item.pendaftaran.id_pendaftaran);
             String label = "Antrean " + item.pendaftaran.nomor_antrean + " • " + item.pasienNama + " • "
-                    + Tampilan.langkah(item.tahap).singkat();
+                    + ScreenText.langkah(item.tahap).singkat();
             sb.append(opsi(nilai, Long.toString(kunjungan.pendaftaran.id_pendaftaran), label));
         }
         sb.append("</select></form>");
         return sb.toString();
     }
 
-    private String pasien(Toko.Kunjungan jalan) {
+    private String pasien(VisitStore.Kunjungan jalan) {
         boolean masih = jalan != null && !jalan.selesai && !"Batal".equals(jalan.pendaftaran.status_antrean);
         StringBuilder sb = new StringBuilder();
         if (jalan != null) {
@@ -945,7 +945,7 @@ final class Layar {
         return sb.toString();
     }
 
-    private String formKeluhan(Toko.Kunjungan kunjungan) {
+    private String formKeluhan(VisitStore.Kunjungan kunjungan) {
         boolean terkunci = kunjungan.tahap >= 5;
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block wide\"><div class=\"section-title\">Keluhan untuk dokter<span class=\"pill\">");
@@ -954,8 +954,8 @@ final class Layar {
         sb.append("<div class=\"info-grid\">");
         sb.append(info("Poliklinik", kunjungan.poliNama));
         sb.append(info("Dokter", kunjungan.dokterNama));
-        sb.append(info("Penjamin", Tampilan.labelPenjamin(kunjungan.nomorBpjs)));
-        sb.append(info("Jadwal", Aturan.jamPendek(kunjungan.jadwal.jam_mulai) + "–" + Aturan.jamPendek(kunjungan.jadwal.jam_selesai)));
+        sb.append(info("Penjamin", ScreenText.labelPenjamin(kunjungan.nomorBpjs)));
+        sb.append(info("Jadwal", VisitRules.jamPendek(kunjungan.jadwal.jam_mulai) + "–" + VisitRules.jamPendek(kunjungan.jadwal.jam_selesai)));
         sb.append("</div><div class=\"form-group\"><label class=\"form-label\">Keluhan utama</label>");
         sb.append("<textarea class=\"textarea-field\" name=\"keluhan\"").append(mati(terkunci)).append(">")
                 .append(e(keluhan)).append("</textarea></div>");
@@ -968,7 +968,7 @@ final class Layar {
     }
 
     private String formDaftar(boolean tampil, boolean adaJalan) {
-        List<Toko.Slot> slot = toko.slotHari(Aturan.tanggalIso(), idPoli);
+        List<VisitStore.Slot> slot = toko.slotHari(VisitRules.tanggalIso(), idPoli);
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block wide\"><div class=\"section-title\">");
         sb.append(adaJalan ? "Kunjungan lain" : "Daftar poliklinik");
@@ -994,12 +994,12 @@ final class Layar {
             sb.append("</select></div><div class=\"form-group\"><label class=\"form-label\">Penjamin</label>");
             Pasien pasien = toko.pasienAktif();
             sb.append("<input class=\"input-field\" readonly value=\"")
-                    .append(e(Tampilan.labelPenjamin(pasien == null ? null : pasien.nomor_bpjs))).append("\"></div></div>");
+                    .append(e(ScreenText.labelPenjamin(pasien == null ? null : pasien.nomor_bpjs))).append("\"></div></div>");
             sb.append("<div class=\"form-group\"><label class=\"form-label\">Dokter dan jadwal hari ini</label>");
             sb.append("<select class=\"select-field\" name=\"id_jadwal\" onchange=\"this.form.querySelector('[name=aksi]').value='jadwal'; this.form.submit()\">");
-            for (Toko.Slot item : slot) {
-                String label = item.dokterNama + ", " + item.spesialisasi + " • " + Aturan.jamPendek(item.jadwal.jam_mulai)
-                        + "–" + Aturan.jamPendek(item.jadwal.jam_selesai) + " • sisa " + item.sisa;
+            for (VisitStore.Slot item : slot) {
+                String label = item.dokterNama + ", " + item.spesialisasi + " • " + VisitRules.jamPendek(item.jadwal.jam_mulai)
+                        + "–" + VisitRules.jamPendek(item.jadwal.jam_selesai) + " • sisa " + item.sisa;
                 sb.append(opsi(Long.toString(item.jadwal.id_jadwal), Long.toString(terpilih), label));
             }
             sb.append("</select></div><div class=\"form-group\"><label class=\"form-label\">Keluhan utama</label>");
@@ -1016,7 +1016,7 @@ final class Layar {
         return sb.toString();
     }
 
-    private String status(Toko.Kunjungan kunjungan) {
+    private String status(VisitStore.Kunjungan kunjungan) {
         boolean sudah = !kosong(kunjungan.pendaftaran.waktu_check_in);
         boolean bolehBatal = kunjungan.tahap > 0 && kunjungan.tahap <= 3 && !"Batal".equals(kunjungan.pendaftaran.status_antrean);
         StringBuilder sb = new StringBuilder();
@@ -1032,13 +1032,13 @@ final class Layar {
         return sb.toString();
     }
 
-    private String ringkasan(Toko.Kunjungan kunjungan) {
+    private String ringkasan(VisitStore.Kunjungan kunjungan) {
         Periksa periksa = kunjungan.pemeriksaan;
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block\"><div class=\"section-title\">Hasil pemeriksaan<span>Rekam medis</span></div><div class=\"card\"><div class=\"info-grid\">");
         sb.append(info("Tekanan darah", kosong(periksa.tekanan_darah) ? "-" : periksa.tekanan_darah));
-        sb.append(info("Suhu", Tampilan.angkaTampil(periksa.suhu_tubuh)));
-        sb.append(info("Berat dan tinggi", Tampilan.angkaTampil(periksa.berat_badan) + " kg / " + Tampilan.angkaTampil(periksa.tinggi_badan) + " cm"));
+        sb.append(info("Suhu", ScreenText.angkaTampil(periksa.suhu_tubuh)));
+        sb.append(info("Berat dan tinggi", ScreenText.angkaTampil(periksa.berat_badan) + " kg / " + ScreenText.angkaTampil(periksa.tinggi_badan) + " cm"));
         sb.append(info("Diagnosis", kosong(periksa.diagnosis) ? "-" : periksa.diagnosis));
         sb.append(info("Tindakan", kosong(periksa.tindakan) ? "-" : periksa.tindakan));
         sb.append("</div><small class=\"form-label\">Catatan medis dokter</small><p class=\"hint\">");
@@ -1047,13 +1047,13 @@ final class Layar {
         return sb.toString();
     }
 
-    private String pilihan(Toko.Kunjungan kunjungan) {
+    private String pilihan(VisitStore.Kunjungan kunjungan) {
         Resep resep = kunjungan.resep;
         if (!kunjungan.resepTerkirim || resep == null) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        String kanan = "Apotek Luar".equals(resep.pilihan_penebusan) ? "Dibawa ke apotek luar" : Tampilan.labelStatusResep(resep.status_resep);
+        String kanan = "Apotek Luar".equals(resep.pilihan_penebusan) ? "Dibawa ke apotek luar" : ScreenText.labelStatusResep(resep.status_resep);
         sb.append("<section class=\"block\"><div class=\"section-title\">Pilihan apotek<span>").append(e(kanan)).append("</span></div>");
         sb.append("<form class=\"card\" method=\"post\" action=\"/tindakan\">").append(sembunyi("sesi", token));
         if ("Belum Memilih".equals(resep.pilihan_penebusan)) {
@@ -1072,7 +1072,7 @@ final class Layar {
         return sb.toString();
     }
 
-    private String qr(Toko.Kunjungan kunjungan) {
+    private String qr(VisitStore.Kunjungan kunjungan) {
         Resep resep = kunjungan.resep;
         if (resep == null) {
             return "";
@@ -1110,9 +1110,9 @@ final class Layar {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block\"><div class=\"section-title\">Profil pasien<span>")
-                .append(e(Tampilan.labelPenjamin(pasien.nomor_bpjs))).append("</span></div><div class=\"card\"><div class=\"info-grid\">");
+                .append(e(ScreenText.labelPenjamin(pasien.nomor_bpjs))).append("</span></div><div class=\"card\"><div class=\"info-grid\">");
         sb.append(info("Nama", pasien.nama_lengkap));
-        sb.append(info("NIK", revealNik ? pasien.nik : Sandi.maskNik(pasien.nik)));
+        sb.append(info("NIK", revealNik ? pasien.nik : PasswordHash.maskNik(pasien.nik)));
         sb.append(info("Lahir", tgl(pasien.tanggal_lahir) + " • " + ("L".equals(pasien.jenis_kelamin) ? "Laki-laki" : "Perempuan")));
         sb.append(info("BPJS", kosong(pasien.nomor_bpjs) ? "-" : pasien.nomor_bpjs));
         sb.append(info("Nomor WhatsApp", pasien.no_telepon));
@@ -1127,10 +1127,10 @@ final class Layar {
         return sb.toString();
     }
 
-    private String dokter(Toko.Kunjungan kunjungan) {
+    private String dokter(VisitStore.Kunjungan kunjungan) {
         Periksa periksa = kunjungan.pemeriksaan;
         boolean terkunci = kunjungan.tahap > 5;
-        Tampilan.Panduan info = panduan("dokter", kunjungan);
+        ScreenText.Panduan info = panduan("dokter", kunjungan);
         String labelTombol = info.milikAnda() ? info.tombol() : "Simpan catatan saja";
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block wide\"><div class=\"section-title\">Data keluhan dan tanda vital<span>")
@@ -1138,21 +1138,21 @@ final class Layar {
         sb.append("<div class=\"allergy-alert\">Catatan pendaftaran: ").append(e(teksAlergi(kunjungan))).append("</div><div class=\"info-grid\">");
         sb.append(info("Keluhan", kosong(periksa.keluhan) ? "-" : periksa.keluhan));
         sb.append(info("Tekanan darah", kosong(periksa.tekanan_darah) ? "-" : periksa.tekanan_darah));
-        sb.append(info("Suhu", Tampilan.angkaTampil(periksa.suhu_tubuh)));
-        sb.append(info("Berat dan tinggi", Tampilan.angkaTampil(periksa.berat_badan) + " kg / " + Tampilan.angkaTampil(periksa.tinggi_badan) + " cm"));
+        sb.append(info("Suhu", ScreenText.angkaTampil(periksa.suhu_tubuh)));
+        sb.append(info("Berat dan tinggi", ScreenText.angkaTampil(periksa.berat_badan) + " kg / " + ScreenText.angkaTampil(periksa.tinggi_badan) + " cm"));
         sb.append("</div></div></section>");
         sb.append("<section class=\"block wide\"><div class=\"section-title\">Form pemeriksaan<span class=\"pill\">")
                 .append(info.milikAnda() ? "Giliran Anda" : "Lihat saja").append("</span></div>");
         sb.append("<form class=\"card\" method=\"post\" action=\"/tindakan\">").append(sembunyi("sesi", token));
         sb.append("<div class=\"form-group\"><label class=\"form-label\">Kode dan nama diagnosa (ICD-10)</label>");
         sb.append("<select class=\"select-field\" name=\"icd\">");
-        for (Tampilan.Kode item : Tampilan.ICD) {
+        for (ScreenText.Kode item : ScreenText.ICD) {
             sb.append(opsi(item.kode(), kodeIcd, item.kode() + " - " + item.nama()));
         }
         sb.append("</select></div><div class=\"form-group\"><label class=\"form-label\">Anamnesa dan catatan fisik</label>");
         sb.append("<textarea class=\"textarea-field\" name=\"catatan\" placeholder=\"Catatan pemeriksaan\">").append(e(catatan)).append("</textarea></div>");
         sb.append("<div class=\"form-group\"><label class=\"form-label\">Tindakan</label><select class=\"select-field\" name=\"tindakan\">");
-        for (String item : Tampilan.TINDAKAN) {
+        for (String item : ScreenText.TINDAKAN) {
             sb.append(opsi(item, tindakanPilih, item));
         }
         sb.append("</select></div><hr class=\"line\"><div class=\"form-group\"><label class=\"form-label\">E-resep dari master obat</label>");
@@ -1162,7 +1162,7 @@ final class Layar {
         }
         sb.append("</select><input class=\"input-field\" type=\"number\" min=\"1\" name=\"jumlah\" value=\"").append(jumlahObat).append("\"></div>");
         sb.append("<div class=\"form-row compact-btn\" style=\"margin-top:8px;\"><select class=\"select-field\" name=\"aturan\">");
-        for (String item : Tampilan.ATURAN_PAKAI) {
+        for (String item : ScreenText.ATURAN_PAKAI) {
             sb.append(opsi(item, aturan, item));
         }
         sb.append("</select><button class=\"btn-outline\" style=\"margin-top:0;\" type=\"submit\" name=\"aksi\" value=\"tambah-obat\"")
@@ -1174,9 +1174,9 @@ final class Layar {
         return sb.toString();
     }
 
-    private String admin(Toko.Kunjungan kunjungan) {
+    private String admin(VisitStore.Kunjungan kunjungan) {
         boolean selesai = kunjungan.selesai || "Batal".equals(kunjungan.pendaftaran.status_antrean);
-        Tampilan.Panduan info = panduan("admin", kunjungan);
+        ScreenText.Panduan info = panduan("admin", kunjungan);
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block\"><div class=\"section-title\">Skrining perawat<span>Tanda vital</span></div>");
         sb.append("<form class=\"card\" method=\"post\" action=\"/tindakan\">").append(sembunyi("sesi", token));
@@ -1203,13 +1203,13 @@ final class Layar {
         return sb.toString();
     }
 
-    private String farmasi(Toko.Kunjungan kunjungan) {
+    private String farmasi(VisitStore.Kunjungan kunjungan) {
         Resep resep = kunjungan.resep;
-        Tampilan.Panduan info = panduan("farmasi", kunjungan);
+        ScreenText.Panduan info = panduan("farmasi", kunjungan);
         boolean bolehLanjut = kunjungan.tahap == 7 || kunjungan.tahap == 8;
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block\"><div class=\"section-title\">Antrean farmasi<span>")
-                .append(e(resep == null ? "Belum ada resep" : Tampilan.labelStatusResep(resep.status_resep))).append("</span></div>");
+                .append(e(resep == null ? "Belum ada resep" : ScreenText.labelStatusResep(resep.status_resep))).append("</span></div>");
         sb.append("<div class=\"card\"><div class=\"info-grid\">");
         sb.append(info("Pasien", kunjungan.pasienNama));
         sb.append(info("Resep", resep == null ? "-" : "Resep #" + resep.id_resep));
@@ -1247,25 +1247,25 @@ final class Layar {
         return sb.toString();
     }
 
-    private String daftarObat(Toko.Kunjungan kunjungan, boolean bolehHapus) {
+    private String daftarObat(VisitStore.Kunjungan kunjungan, boolean bolehHapus) {
         if (kunjungan.detail == null || kunjungan.detail.isEmpty()) {
             return "<p class=\"hint\">Belum ada item resep.</p>";
         }
         StringBuilder sb = new StringBuilder();
-        for (Toko.DetailTampil item : kunjungan.detail) {
+        for (VisitStore.DetailTampil item : kunjungan.detail) {
             boolean bayar = kosong(kunjungan.nomorBpjs) || !item.obat.cover_bpjs;
             String aturanTeks = teks(item.baris.dosis_aturan_pakai);
             if (!kosong(item.baris.instruksi_racikan)) {
                 aturanTeks += " • " + item.baris.instruksi_racikan;
             }
             String harga = bayar
-                    ? "Berbayar " + Tampilan.formatRp(item.obat.harga * item.baris.jumlah)
+                    ? "Berbayar " + ScreenText.formatRp(item.obat.harga * item.baris.jumlah)
                     : "Ditanggung BPJS";
             sb.append("<div class=\"med-item\"><div><h4>").append(e(item.obat.nama_obat)).append("</h4><p>")
                     .append(e(aturanTeks)).append("</p><p>").append(e(harga)).append("</p></div><div class=\"med-side\">");
             sb.append("<span class=\"pill").append("tersedia".equals(item.ketersediaan) ? "" : " pill-danger").append("\">");
             sb.append(item.baris.jumlah).append(' ').append(e(item.obat.satuan)).append(" • ")
-                    .append(e(Tampilan.labelKetersediaan(item.ketersediaan))).append("</span>");
+                    .append(e(ScreenText.labelKetersediaan(item.ketersediaan))).append("</span>");
             if (bolehHapus) {
                 sb.append("<button class=\"btn-small danger\" type=\"submit\" name=\"aksi\" value=\"hapus-")
                         .append(item.baris.id_detail).append("\">×</button>");
@@ -1275,9 +1275,9 @@ final class Layar {
         return sb.toString();
     }
 
-    private String alur(String role, Toko.Kunjungan kunjungan) {
+    private String alur(String role, VisitStore.Kunjungan kunjungan) {
         int tahap = kunjungan == null ? 0 : kunjungan.tahap;
-        Tampilan.Panduan info = panduan(role, kunjungan);
+        ScreenText.Panduan info = panduan(role, kunjungan);
         boolean selesai = "Kunjungan selesai".equals(info.status());
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block wide\"><div class=\"section-title\">Perjalanan kunjungan<span>");
@@ -1285,7 +1285,7 @@ final class Layar {
         sb.append("<p class=\"hint\" style=\"margin-top:0;\">Kunjungan berjalan dari daftar, periksa, resep, sampai obat diambil. ");
         sb.append("Bagian berbingkai hijau adalah posisi sekarang. Pasien menunggu. Petugas bagian itu yang melanjutkan dari halaman tugasnya.</p>");
         sb.append("<div class=\"fase-board\">");
-        for (Tampilan.Fase fase : Tampilan.FASE) {
+        for (ScreenText.Fase fase : ScreenText.FASE) {
             String keadaan = selesai || info.faseId() > fase.id() ? "done" : info.faseId() == fase.id() ? "now" : "";
             String label = "done".equals(keadaan) ? "Selesai" : "now".equals(keadaan) ? "Sekarang" : "Nanti";
             sb.append("<div class=\"fase-col");
@@ -1293,7 +1293,7 @@ final class Layar {
                 sb.append(' ').append(keadaan);
             }
             sb.append("\"><h3>").append(e(fase.nama())).append("<span>").append(label).append("</span></h3>");
-            for (Tampilan.Langkah item : Tampilan.LANGKAH) {
+            for (ScreenText.Langkah item : ScreenText.LANGKAH) {
                 if (item.tahap() < fase.dari() || item.tahap() > fase.sampai()) {
                     continue;
                 }
@@ -1316,7 +1316,7 @@ final class Layar {
         return sb.toString();
     }
 
-    private String resep(String role, Toko.Kunjungan kunjungan) {
+    private String resep(String role, VisitStore.Kunjungan kunjungan) {
         if (kunjungan == null) {
             return "<section class=\"block wide\"><div class=\"card\"><p class=\"hint\">" + e(panduan(role, null).tindakan()) + "</p></div></section>";
         }
@@ -1335,7 +1335,7 @@ final class Layar {
             sb.append("<p class=\"hint\">Resep belum dibuat.</p>");
         } else {
             sb.append("<p class=\"hint\">Resep #").append(kunjungan.resep.id_resep).append(" • ")
-                    .append(e(kunjungan.resepTerkirim ? Tampilan.labelStatusResep(kunjungan.resep.status_resep) : "Belum dikirim dokter"))
+                    .append(e(kunjungan.resepTerkirim ? ScreenText.labelStatusResep(kunjungan.resep.status_resep) : "Belum dikirim dokter"))
                     .append("</p>");
         }
         sb.append(daftarObat(kunjungan, bolehHapus));
@@ -1347,7 +1347,7 @@ final class Layar {
     }
 
     private String jejak() {
-        Basis basis = toko.snapshot();
+        DatabaseRecords basis = toko.snapshot();
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block wide\"><div class=\"section-title\">Jejak stok dan akses<span>")
                 .append(basis.log_aktivitas.size()).append(" catatan</span></div><div class=\"card\">");
@@ -1418,7 +1418,7 @@ final class Layar {
             if (obat.cover_bpjs) {
                 sb.append(" • BPJS");
             }
-            sb.append("</span></td><td>").append(obat.stok_rs).append("</td><td>").append(e(Tampilan.formatRp(obat.harga)));
+            sb.append("</span></td><td>").append(obat.stok_rs).append("</td><td>").append(e(ScreenText.formatRp(obat.harga)));
             sb.append("</td><td class=\"aksi\">");
             sb.append(formBuka("inline", "isi-obat")).append(sembunyi("id_obat", Long.toString(obat.id_obat)));
             sb.append("<button class=\"btn-small\" type=\"submit\">Ubah</button></form>");
@@ -1465,7 +1465,7 @@ final class Layar {
         List<Jadwal> daftar = toko.jadwalSaya();
         for (Jadwal jadwal : daftar) {
             sb.append("<tr><td><strong>").append(e(jadwal.hari)).append("</strong></td><td>")
-                    .append(e(Aturan.jamPendek(jadwal.jam_mulai))).append("–").append(e(Aturan.jamPendek(jadwal.jam_selesai)));
+                    .append(e(VisitRules.jamPendek(jadwal.jam_mulai))).append("–").append(e(VisitRules.jamPendek(jadwal.jam_selesai)));
             sb.append("</td><td>").append(jadwal.kuota_maksimal).append("</td><td class=\"aksi\">");
             sb.append(formBuka("inline", "isi-jadwal")).append(sembunyi("id_jadwal", Long.toString(jadwal.id_jadwal)));
             sb.append("<button class=\"btn-small\" type=\"submit\">Ubah</button></form>");
@@ -1484,9 +1484,9 @@ final class Layar {
     }
 
     private String pesan(boolean lebar) {
-        List<Toko.KabarTampil> daftar = toko.notifikasiUser(null);
+        List<VisitStore.KabarTampil> daftar = toko.notifikasiUser(null);
         int belum = 0;
-        for (Toko.KabarTampil item : daftar) {
+        for (VisitStore.KabarTampil item : daftar) {
             if (!item.dibaca) {
                 belum++;
             }
@@ -1509,7 +1509,7 @@ final class Layar {
     }
 
     private String panel() {
-        List<Toko.KabarTampil> daftar = toko.notifikasiUser(null);
+        List<VisitStore.KabarTampil> daftar = toko.notifikasiUser(null);
         StringBuilder sb = new StringBuilder("<div class=\"notify-panel\" role=\"dialog\" aria-label=\"Notifikasi aplikasi\"><h3>Notifikasi aplikasi</h3>");
         if (daftar.isEmpty()) {
             sb.append("<p class=\"hint\">Belum ada notifikasi di akun ini. Pembaruan kunjungan masuk ke aplikasi pasien.</p>");
@@ -1520,11 +1520,11 @@ final class Layar {
         return sb.toString();
     }
 
-    private String daftarKabar(List<Toko.KabarTampil> daftar) {
+    private String daftarKabar(List<VisitStore.KabarTampil> daftar) {
         StringBuilder sb = new StringBuilder();
-        for (Toko.KabarTampil item : daftar) {
+        for (VisitStore.KabarTampil item : daftar) {
             sb.append("<div class=\"med-item").append(item.dibaca ? "" : " unread").append("\"><div><h4>")
-                    .append(e(Aturan.judulNotifikasi(item.baris.jenis_notifikasi, item.baris.pesan))).append("</h4><p>")
+                    .append(e(VisitRules.judulNotifikasi(item.baris.jenis_notifikasi, item.baris.pesan))).append("</h4><p>")
                     .append(e(item.baris.pesan)).append("</p><p>")
                     .append(e(waktu(kosong(item.baris.waktu_dikirim) ? item.baris.created_at : item.baris.waktu_dikirim)))
                     .append("</p></div><span class=\"pill\">").append(item.dibaca ? "Dibaca" : "Baru").append("</span></div>");
@@ -1584,7 +1584,7 @@ final class Layar {
                 + "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
                 + "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">\n"
                 + "<link rel=\"stylesheet\" href=\"/mediflow.css\">\n</head>\n<body>\n"
-                + isi + "\n" + kabar + "\n<script src=\"/app.js\"></script>\n</body>\n</html>\n";
+                + isi + "\n" + kabar + "\n<script src=\"/application.js\"></script>\n</body>\n</html>\n";
     }
 
     private String kabarJson(Pengguna aktor) {
@@ -1609,7 +1609,7 @@ final class Layar {
         return "Database belum terjangkau. Data demo dipakai selama server ini berjalan.";
     }
 
-    private String teksAlergi(Toko.Kunjungan kunjungan) {
+    private String teksAlergi(VisitStore.Kunjungan kunjungan) {
         String catatanPasien = kunjungan.pendaftaran.catatan_pasien == null ? "" : kunjungan.pendaftaran.catatan_pasien.trim();
         String keluhanTeks = kunjungan.pemeriksaan.keluhan == null ? "" : kunjungan.pemeriksaan.keluhan.trim();
         if (catatanPasien.isEmpty() || catatanPasien.equals(keluhanTeks)) {
@@ -1634,8 +1634,8 @@ final class Layar {
         return AKUN.get(0);
     }
 
-    private static boolean adaSlot(List<Toko.Slot> slot, long id) {
-        for (Toko.Slot item : slot) {
+    private static boolean adaSlot(List<VisitStore.Slot> slot, long id) {
+        for (VisitStore.Slot item : slot) {
             if (item.jadwal.id_jadwal == id) {
                 return true;
             }
@@ -1747,7 +1747,7 @@ final class Layar {
 
     private static String jam(String iso) {
         try {
-            return Tampilan.formatJam(iso);
+            return ScreenText.formatJam(iso);
         } catch (RuntimeException error) {
             return "-";
         }
@@ -1755,7 +1755,7 @@ final class Layar {
 
     private static String tgl(String nilai) {
         try {
-            return Tampilan.formatTanggal(nilai);
+            return ScreenText.formatTanggal(nilai);
         } catch (RuntimeException error) {
             return "-";
         }

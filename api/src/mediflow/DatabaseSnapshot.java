@@ -12,19 +12,19 @@ import java.util.List;
 import java.util.Map;
 
 /** Baca dan tulis seluruh medicflow_db dalam bentuk yang dipakai PWA. */
-final class Snapshot {
-    private Snapshot() {}
+final class DatabaseSnapshot {
+    private DatabaseSnapshot() {}
 
     static Map<String, List<Map<String, Object>>> baca(Connection db) throws SQLException {
         Map<String, List<Map<String, Object>>> hasil = new LinkedHashMap<>();
-        for (Catalog.Table tabel : Catalog.TABLES) {
+        for (TableCatalog.Table tabel : TableCatalog.TABLES) {
             List<Map<String, Object>> baris = new ArrayList<>();
             try (Statement perintah = db.createStatement();
                  ResultSet rs = perintah.executeQuery("SELECT * FROM " + kutip(tabel.name()))) {
                 while (rs.next()) {
                     Map<String, Object> item = new LinkedHashMap<>();
-                    for (Catalog.Col kolom : tabel.columns()) {
-                        item.put(kolom.name(), Values.baca(rs.getString(kolom.name()), kolom));
+                    for (TableCatalog.Col kolom : tabel.columns()) {
+                        item.put(kolom.name(), ColumnValues.baca(rs.getString(kolom.name()), kolom));
                     }
                     baris.add(item);
                 }
@@ -35,7 +35,7 @@ final class Snapshot {
     }
 
     static void simpan(Connection db, Map<String, Object> data) throws SQLException {
-        for (Catalog.Table tabel : Catalog.TABLES) {
+        for (TableCatalog.Table tabel : TableCatalog.TABLES) {
             if (!(data.get(tabel.name()) instanceof List<?>)) {
                 throw new IllegalStateException("Tabel " + tabel.name() + " tidak lengkap.");
             }
@@ -48,10 +48,10 @@ final class Snapshot {
         db.setAutoCommit(false);
         try (Statement perintah = db.createStatement()) {
             perintah.execute("SET FOREIGN_KEY_CHECKS = 0");
-            for (int i = Catalog.TABLES.size() - 1; i >= 0; i--) {
-                perintah.execute("DELETE FROM " + kutip(Catalog.TABLES.get(i).name()));
+            for (int i = TableCatalog.TABLES.size() - 1; i >= 0; i--) {
+                perintah.execute("DELETE FROM " + kutip(TableCatalog.TABLES.get(i).name()));
             }
-            for (Catalog.Table tabel : Catalog.TABLES) {
+            for (TableCatalog.Table tabel : TableCatalog.TABLES) {
                 for (Object item : (List<?>) data.get(tabel.name())) {
                     if (!(item instanceof Map<?, ?> mentah)) {
                         throw new IllegalStateException("Baris " + tabel.name() + " tidak valid.");
@@ -62,7 +62,7 @@ final class Snapshot {
                     }
                     if ("pemeriksaan".equals(tabel.name()) && baris.get("waktu_mulai") == null) {
                         Object dibuat = baris.get("created_at");
-                        baris.put("waktu_mulai", dibuat != null ? dibuat : Values.sekarangUtc());
+                        baris.put("waktu_mulai", dibuat != null ? dibuat : ColumnValues.sekarangUtc());
                     }
                     sisip(db, tabel, baris);
                 }
@@ -82,8 +82,8 @@ final class Snapshot {
         }
     }
 
-    private static void sisip(Connection db, Catalog.Table tabel, Map<String, Object> baris) throws SQLException {
-        List<Catalog.Col> kolom = tabel.columns();
+    private static void sisip(Connection db, TableCatalog.Table tabel, Map<String, Object> baris) throws SQLException {
+        List<TableCatalog.Col> kolom = tabel.columns();
         StringBuilder sql = new StringBuilder("INSERT INTO ");
         sql.append(kutip(tabel.name())).append(" (");
         for (int i = 0; i < kolom.size(); i++) {
@@ -104,14 +104,14 @@ final class Snapshot {
         }
     }
 
-    private static void ikat(PreparedStatement ps, int indeks, Object nilai, Catalog.Col kolom) throws SQLException {
+    private static void ikat(PreparedStatement ps, int indeks, Object nilai, TableCatalog.Col kolom) throws SQLException {
         boolean kosong = nilai == null || (nilai instanceof String teks && teks.isEmpty());
         if (kosong) {
-            if (kolom.type() == Catalog.Type.BOOL) {
+            if (kolom.type() == TableCatalog.Type.BOOL) {
                 ps.setInt(indeks, 0);
                 return;
             }
-            if (kolom.type() == Catalog.Type.STR && !kolom.nullable()) {
+            if (kolom.type() == TableCatalog.Type.STR && !kolom.nullable()) {
                 ps.setString(indeks, "");
                 return;
             }
@@ -119,11 +119,11 @@ final class Snapshot {
             return;
         }
         switch (kolom.type()) {
-            case INT -> ps.setLong(indeks, Values.keLong(nilai));
-            case BOOL -> ps.setInt(indeks, Values.benarSnapshot(nilai) ? 1 : 0);
-            case DEC -> ps.setDouble(indeks, Values.numerik(nilai) ? Values.keDouble(nilai) : 0d);
+            case INT -> ps.setLong(indeks, ColumnValues.keLong(nilai));
+            case BOOL -> ps.setInt(indeks, ColumnValues.benarSnapshot(nilai) ? 1 : 0);
+            case DEC -> ps.setDouble(indeks, ColumnValues.numerik(nilai) ? ColumnValues.keDouble(nilai) : 0d);
             case DT -> {
-                String sql = Values.keSql(String.valueOf(nilai));
+                String sql = ColumnValues.keSql(String.valueOf(nilai));
                 if (sql == null) {
                     ps.setNull(indeks, Types.VARCHAR);
                 } else {

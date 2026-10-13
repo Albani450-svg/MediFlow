@@ -12,12 +12,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Konversi nilai yang dipakai snapshot dan CRUD. */
-final class Values {
+final class ColumnValues {
     private static final Pattern AWALAN_ANGKA = Pattern.compile("^[+-]?\\d+");
     private static final DateTimeFormatter UTC =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
 
-    private Values() {}
+    private ColumnValues() {}
 
     static String sekarangUtc() {
         return UTC.format(Instant.now());
@@ -116,13 +116,13 @@ final class Values {
         return nilai;
     }
 
-    static Object baca(String nilai, Catalog.Col kolom) {
+    static Object baca(String nilai, TableCatalog.Col kolom) {
         nilai = rapikanWaktuDb(nilai);
         if (nilai == null || nilai.isEmpty()) {
             if (kolom.nullable()) {
                 return null;
             }
-            return kolom.type() == Catalog.Type.STR ? "" : null;
+            return kolom.type() == TableCatalog.Type.STR ? "" : null;
         }
         return switch (kolom.type()) {
             case INT -> keLong(nilai);
@@ -133,7 +133,7 @@ final class Values {
         };
     }
 
-    static Object bacaCrud(String nilai, Catalog.Col kolom) {
+    static Object bacaCrud(String nilai, TableCatalog.Col kolom) {
         nilai = rapikanWaktuDb(nilai);
         if (nilai == null) {
             return null;
