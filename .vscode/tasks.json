@@ -2,9 +2,22 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "npm run dev",
-      "type": "npm",
-      "script": "dev",
+      "label": "jalankan",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\jalankan.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "MEDIFLOW_TANPA_BROWSER": "1"
+        }
+      },
       "isBackground": true,
       "problemMatcher": {
         "owner": "custom",
@@ -14,7 +27,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*",
-          "endsPattern": "ready in .+"
+          "endsPattern": "\\[mediflow\\]"
         }
       }
     },
@@ -30,7 +43,7 @@
       "id": "terminate",
       "type": "command",
       "command": "workbench.action.tasks.terminate",
-      "args": "npm run dev"
+      "args": "jalankan"
     }
   ]
 }

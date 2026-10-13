@@ -1,7 +1,21 @@
-import { css } from 'lit';
+:root {
+  color-scheme: light;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
 
-export const mediflowStyles = css`
-  :host {
+html, body {
+  padding: 0;
+  margin: 0;
+  min-height: 100%;
+  background: #e8eef2;
+  color: #0f172a;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
     --primary: #059669;
     --primary-dark: #047857;
     --primary-light: #10b981;
@@ -319,7 +333,7 @@ export const mediflowStyles = css`
   hr.line { border: none; border-top: 1px solid #f1f5f9; margin: 12px 0; }
 
   @media (min-width: 960px) {
-    :host { --shell-width: min(1440px, calc(100% - 32px)); }
+    body { --shell-width: min(1440px, calc(100% - 32px)); }
 
     .login-screen {
       align-items: center;
@@ -424,4 +438,8 @@ export const mediflowStyles = css`
       min-width: 148px;
     }
   }
-`;
+
+form.inline { display: contents; }
+.qr-kode { font-size: 22px; font-weight: 800; letter-spacing: 0.08em; margin: 8px 0; }
+.qr-box svg { width: 180px; height: 180px; }
+button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }

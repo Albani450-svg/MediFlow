@@ -1,9 +1,7 @@
 {
   "recommendations": [
-    "eg2.vscode-npm-script",
-    "christian-kohler.npm-intellisense",
+    "vscjava.vscode-java-pack",
     "ms-edgedevtools.vscode-edge-devtools",
-    "runem.lit-plugin",
     "PWABuilder.pwa-studio"
   ]
 }

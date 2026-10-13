@@ -6,12 +6,8 @@
       "request": "launch",
       "name": "Run PWA",
       "webRoot": "${workspaceFolder}/",
-      "runtimeArgs": ["--app=http://127.0.0.1:5173"],
-      "sourceMapPathOverrides": {
-        "../../src": "${workspaceFolder}/src",
-        "../../src/*": "${workspaceFolder}/src/*"
-      },
-      "preLaunchTask": "npm run dev",
+      "runtimeArgs": ["--app=http://127.0.0.1:8088"],
+      "preLaunchTask": "jalankan",
       "postDebugTask": "postdebugKill"
     }
   ]

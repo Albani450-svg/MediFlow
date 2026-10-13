@@ -1,8 +1,6 @@
 # MediFlow
 
-MediFlow adalah progressive web app (PWA) untuk antrean poliklinik, rekam medis, dan e-resep rumah sakit. Pasien, admin pendaftaran, dokter, dan farmasi memakai satu aplikasi. Data mengikuti skema MySQL `medicflow_db`.
-
-Aplikasi dipasang dari peramban, tetap bisa dibuka saat API mati, dan menyimpan salinan data di komputer pemakai.
+MediFlow adalah progressive web app (PWA) untuk antrean poliklinik, rekam medis, dan e-resep rumah sakit. Pasien, admin pendaftaran, dokter, dan farmasi memakai satu aplikasi. Layar, aturan kunjungan, dan API ditulis dalam Java dan dilayani oleh satu proses di komputer ini.
 
 ## Peran
 
@@ -13,7 +11,7 @@ Aplikasi dipasang dari peramban, tetap bisa dibuka saat API mati, dan menyimpan 
 | Dokter | `dokter01` | `dokter123` | Pemeriksaan, diagnosis, kirim resep |
 | Farmasi | `farmasi01` | `apotek123` | Siapkan obat, cek ulang, serah terima, sesuaikan stok |
 
-Sesi masuk disimpan di `sessionStorage` (`mediflow-session-v2`). Beberapa jendela peramban bisa masuk sebagai peran yang berbeda pada saat yang sama.
+Setiap jendela peramban punya sesi sendiri. Token sesi disimpan di `sessionStorage` dengan kunci `mediflow-sesi` dan ikut di alamat sebagai `?sesi=`. Beberapa jendela bisa masuk sebagai peran yang berbeda pada saat yang sama.
 
 ## Alur kunjungan
 
@@ -29,16 +27,16 @@ Tidak ada kolom tahap di database. Sepuluh langkah dihitung dari status antrean,
 | Resep | 6. Pilih apotek | Pasien memilih; admin meneruskan antrean |
 | Resep | 7. Obat disiapkan | Farmasi |
 | Resep | 8. Pengecekan ulang obat | Farmasi |
-| Ambil | 9. Ambil obat di farmasi | Farmasi, lewat kode QR/PIN |
+| Ambil | 9. Ambil obat di farmasi | Farmasi, lewat kode dan PIN |
 | Ambil | 10. Kunjungan selesai | Tidak ada tindakan |
 
-Pasien tidak memajukan langkah. Pada demo, admin tetap bisa memajukan setiap tahap; spanduk menandai tombol itu sebagai simulasi. Langkah 9 memakai kode serah terima, bukan tombol maju. Kode berlaku 24 jam dan hanya sekali. Keluarga yang mengambil obat memakai PIN di aplikasi. Tidak ada pemindai kamera.
+Pasien tidak memajukan langkah. Pada demo, admin tetap bisa memajukan setiap tahap; spanduk menandai tombol itu sebagai simulasi. Langkah 9 memakai kode serah terima, bukan tombol maju. Kode berlaku 24 jam dan hanya sekali. Keluarga yang mengambil obat memakai PIN di aplikasi. Tidak ada pemindai kamera: petugas mengetik kode yang tampil di aplikasi pasien.
 
 Memilih apotek luar pada langkah 6 menutup kunjungan tanpa mengurangi stok rumah sakit. Antrean farmasi baru menampilkan resep setelah dokter mengirimnya pada langkah 5.
 
 ## Menjalankan di komputer ini
 
-Perlu Node.js, JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP untuk MySQL. `java` harus ada di PATH, atau tunjuk folder JDK lewat `JAVA_HOME`.
+Perlu JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP untuk MySQL. `java` harus ada di PATH, atau tunjuk folder JDK lewat `JAVA_HOME`. Node.js tidak dipakai.
 
 ```powershell
 # 1. Buat database medicflow_db, lalu impor skema dan penyesuaian demo.
@@ -46,27 +44,27 @@ Perlu Node.js, JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di s
 #    mysql -u root < db/schema.sql
 #    mysql -u root medicflow_db < db/sesuaikan-pwa.sql
 
-# 2. Pasang dependensi peramban. API Java memakai jar di api/lib, tanpa Maven.
-npm install
+# 2. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
+#    Perintah ini mengganti isi 15 tabel medicflow_db.
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\jalankan.ps1 dummy
 
-# 3. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
-#    Perintah ini mengganti isi tabel medicflow_db.
-npm run dummy
-
-# 4. Buka aplikasi. Vite juga menyalakan API Java bila port 8088 masih kosong.
-npm run dev
+# 3. Jalankan aplikasi. Peramban terbuka ke halaman masuk.
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\jalankan.ps1
 ```
 
-- Halaman: http://127.0.0.1:5173/
-- API: http://127.0.0.1:8088/
-- Hanya API: `npm run api`
-- Komputer lain di jaringan yang sama: `npm run start-remote`, lalu buka alamat LAN yang dicetak Vite
+- Halaman dan API: http://127.0.0.1:8088/
+- Kesehatan API: http://127.0.0.1:8088/api
+- Pemeriksaan alur tanpa menyalakan server: `scripts\jalankan.ps1 periksa`
+
+`npm run dev`, `npm run check`, dan `npm run dummy` memanggil skrip yang sama. Server hanya menjawab dari komputer ini (`127.0.0.1`).
 
 Koneksi MySQL ada di `api/src/mediflow/Db.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
 
-`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `npm run dummy` mengisi data uji dari `src/mediflow/seed.ts` dan mengganti isi tabel.
+`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-pwa.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `scripts\jalankan.ps1 dummy` mengisi data uji dari `api/src/mediflow/DataUji.java` dan mengganti isi tabel.
 
-Layar masuk tetap empat akun di atas. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di database supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
+Jika MySQL tidak terjangkau, proses Java memakai data uji di memori dan tidak menuliskannya kembali. Jika proses Java berhenti, aplikasi tidak bisa dibuka: layar tidak lagi disimpan di peramban.
+
+Layar masuk tetap empat akun di atas. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di data uji supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
 
 | Antrean | Pasien | Posisi | Yang bisa dicoba |
 | --- | --- | --- | --- |
@@ -82,90 +80,67 @@ Layar masuk tetap empat akun di atas. Pasien lain (Siti, Andi, Rina, Joko, Maya,
 
 Budi juga punya dua kunjungan lama: satu selesai di apotek rumah sakit, satu ditebus di apotek luar. Cetirizine di bawah stok minimum. Vitamin C disembunyikan dan tetap menempel pada resep lama. Dr. Ahmad praktik setiap hari pukul 08.00–12.00. Poli lain punya jadwal di hari kerja, jadi Budi bisa mendaftar kunjungan kedua dari tombol Kunjungan lain.
 
-Jika API atau MySQL mati, aplikasi memakai salinan di `localStorage` dengan kunci `mediflow-db-v2`. Salinan itu memakai data uji yang sama. Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini.
+Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini. Tombol itu juga menulis ke MySQL bila koneksi hidup.
 
 ## Perintah
 
 | Perintah | Fungsi |
 | --- | --- |
-| `npm run dev` | Vite dengan peramban terbuka, plus API Java |
-| `npm run api` | Hanya API Java di port 8088 |
-| `npm run start-remote` | Vite yang menerima koneksi dari jaringan lokal |
-| `npm run build` | Pemeriksaan TypeScript, lalu hasil produksi di `dist/` |
-| `npm run check` | Pemeriksaan alur: jadwal ganda, stok habis, kode QR yang dipakai ulang, dan catatan stok |
-| `npm run dummy` | Mengisi `medicflow_db` dengan data uji hari ini. Isi tabel yang ada diganti |
+| `scripts\jalankan.ps1` | Menyusun sumber Java, lalu menjalankan aplikasi di port 8088 |
+| `scripts\jalankan.ps1 periksa` | Pemeriksaan alur di memori: jadwal ganda, stok habis, kode yang dipakai ulang, dan catatan stok |
+| `scripts\jalankan.ps1 dummy` | Mengisi `medicflow_db` dengan data uji hari ini. Isi tabel yang ada diganti |
+
+Di Visual Studio Code, **Run PWA** membuka Edge ke http://127.0.0.1:8088 dan menyalakan server yang sama.
 
 ## Struktur
 
 ```
 MediFlow/
-  index.html                 halaman pembuka
   public/
-    manifest.json            identitas pemasangan PWA
-    sw.js                    notifikasi dan cache Workbox
-    assets/icons/            ikon 24, 48, 192, dan 512
-  src/
-    app-index.ts             kulit aplikasi
-    router.ts                rute / (masuk) dan /app (beranda)
-    pages/app-login/         layar masuk
-    pages/app-beranda/       beranda empat peran
-    styles/                  global.css dan gaya komponen
-    mediflow/                tipe, aturan, simpanan, dan teks antarmuka
+    mediflow.css           gaya layar
+    app.js                 token sesi, izin notifikasi, dan tutup toast
+    sw.js                  cache berkas statis dan notifikasi
+    manifest.json          identitas pemasangan PWA
+    assets/icons/          ikon 24, 48, 192, dan 512
   scripts/
-    start-api.mjs            menyusun dan menjalankan API Java bila port 8088 kosong
-    run-check.mjs            menjalankan scripts/check.ts lewat Vite
+    jalankan.ps1           menyusun dan menjalankan aplikasi Java
   db/
-    schema.sql               skema medicflow_db
-    sesuaikan-pwa.sql        akun demo setelah impor dump
-  api/                       API Java di port 8088
+    schema.sql             skema medicflow_db
+    sesuaikan-pwa.sql      akun demo setelah impor dump
+  api/
+    lib/                   jar Jackson dan MySQL, tanpa Maven
+    src/mediflow/          domain, API, dan layar HTML
 ```
 
-Kode domain ada di `src/mediflow/`:
+Kode Java ada di `api/src/mediflow/`:
 
 | Berkas | Isi |
 | --- | --- |
-| `types.ts` | Bentuk data, sama dengan tabel MySQL |
-| `store.ts` | Status aplikasi, masuk, kunjungan, resep, dan stok |
-| `rules.ts` | Tahap kunjungan, bentrok jadwal, stok, dan teks notifikasi |
-| `labels.ts` | Sepuluh langkah, empat bagian, dan kalimat spanduk |
-| `remote.ts` | Ambil dan simpan seluruh database lewat `GET`/`PUT /api/database` |
-| `seed.ts` | Data cadangan bila server tidak menjawab |
-| `crypto.ts` | Hash kata sandi demo dan penyamaran NIK |
-| `notify.ts` | Izin dan notifikasi perangkat |
-| `format.ts` | Tanggal, jam, dan rupiah |
+| `ApiServer.java` | HTTP di 127.0.0.1:8088, API dan halaman |
+| `Situs.java` | Sesi per jendela dan berkas statis |
+| `Layar.java` | HTML masuk dan beranda |
+| `Toko.java` | Masuk, kunjungan, resep, dan stok |
+| `Aturan.java` | Tahap, bentrok jadwal, stok, dan teks notifikasi |
+| `Tampilan.java` | Sepuluh langkah, empat bagian, tanggal, dan rupiah |
+| `DataUji.java` | Data cadangan bila MySQL tidak menjawab |
+| `Basis.java` | Bentuk data, sama dengan tabel MySQL |
+| `Sandi.java` | Hash kata sandi demo dan penyamaran NIK |
+| `UjiAlur.java` | Pemeriksaan alur |
+| `IsiDummy.java` | Menulis data uji ke MySQL |
 
-API Java ada di `api/src/mediflow/`. PWA tetap memakai `GET` dan `PUT /api/database`. Selain itu setiap tabel punya CRUD:
+API tetap tersedia di proses yang sama:
 
 | Metode | Jalur |
 | --- | --- |
+| GET | `/api` kesehatan `{ "ok", "service": "mediflow", "language": "java" }` |
 | GET, PUT, POST | `/api/database` |
 | GET, POST | `/api/users`, `/api/pasien`, `/api/poliklinik`, `/api/dokter`, `/api/jadwal_dokter`, `/api/obat`, `/api/pendaftaran_poli`, `/api/pemeriksaan`, `/api/resep`, `/api/detail_resep`, `/api/notifikasi`, `/api/otp_verifikasi`, `/api/pengambilan_obat`, `/api/mutasi_stok`, `/api/log_aktivitas` |
 | GET, PUT, PATCH, DELETE | jalur yang sama ditambah `/{id}` |
 
-Balasan CRUD berbentuk `{ "status", "message", "data" }`. Daftar bisa disaring lewat query, misalnya `GET /api/pendaftaran_poli?id_pasien=2&tanggal_kunjungan=2026-10-08`. Semua jalur `/api` hanya menjawab dari komputer ini. Jadwal yang bertumpuk, kuota di bawah antrean hari ini, atau jadwal yang disembunyikan padahal masih ada antrean hari ini ditolak. Pasien tidak bisa mendaftar dua kali pada jadwal dan tanggal yang sama. Pesan notifikasi tidak boleh memuat kata WhatsApp, nama obat, atau diagnosis.
+`GET /` dengan header `Accept: application/json` juga mengembalikan objek kesehatan itu. Permintaan peramban biasa mendapat halaman HTML.
 
-Vite meneruskan permintaan `/api` ke `127.0.0.1:8088`. Setiap penyimpanan PWA mengirim seluruh database. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
+Balasan CRUD berbentuk `{ "status", "message", "data" }`. Daftar bisa disaring lewat query, misalnya `GET /api/pendaftaran_poli?id_pasien=2&tanggal_kunjungan=2026-10-08`. Semua jalur hanya menjawab dari komputer ini. Jadwal yang bertumpuk, kuota di bawah antrean hari ini, atau jadwal yang disembunyikan padahal masih ada antrean hari ini ditolak. Pasien tidak bisa mendaftar dua kali pada jadwal dan tanggal yang sama. Pesan notifikasi tidak boleh memuat kata WhatsApp, nama obat, atau diagnosis.
+
+Perubahan dari layar menulis seluruh database lewat snapshot. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
 
 Tabel: `users`, `pasien`, `poliklinik`, `dokter`, `jadwal_dokter`, `obat`, `pendaftaran_poli`, `pemeriksaan`, `resep`, `detail_resep`, `notifikasi`, `otp_verifikasi`, `pengambilan_obat`, `mutasi_stok`, `log_aktivitas`.
-
-Perubahan stok masuk ke `mutasi_stok`. Pengambilan obat masuk ke `pengambilan_obat`. PIN keluarga masuk ke `otp_verifikasi`.
-
-## Notifikasi
-
-Setiap kabar kunjungan tampil di dalam PWA. Baris disimpan dengan kanal `PWA`, meskipun skema juga mengizinkan WhatsApp. Lonceng dan kartu pasien membaca notifikasi pengguna yang sedang masuk. Toast muncul selama pengguna ada di aplikasi. Notifikasi perangkat hanya muncul bila izin diberikan dan halaman sedang tersembunyi. Teks pesan tidak memuat nama obat atau diagnosis.
-
-Ketukan notifikasi memfokuskan jendela yang sudah terbuka dan mengirim pesan `mediflow-open`.
-
-## Tampilan
-
-Di layar di bawah 960px, kolom aplikasi tetap selebar ponsel (`min(480px, 100%)`). Mulai 960px, lebar menjadi `min(1440px, calc(100% - 32px))`. Layar masuk di desktop terbagi dua: merek di kiri, peran dan formulir di kanan. Kartu pasien, admin, dan farmasi berdampingan. Papan sepuluh langkah terbagi 1–5 dan 6–10. Pemeriksaan dokter, stok, dan jejak audit tetap selebar penuh.
-
-## Batasan demo
-
-Ini aplikasi pengembangan, bukan rancangan produksi.
-
-- Kata sandi demo di-hash SHA-256 di peramban. Produksi memakai hash lambat di server, misalnya bcrypt atau Argon2.
-- NIK pada demo disamarkan di peramban. Produksi mengenkripsi NIK di server.
-- `PUT /api/database` mengganti seluruh isi tabel. Tidak ada penggabungan perubahan dari dua pengguna.
-- API pengembangan hanya dijangkau dari komputer ini, kecuali `npm run start-remote` membuka halaman Vite ke jaringan lokal.
-- Belum ada pemindai QR. Petugas mengetik kode yang terlihat di aplikasi pasien.

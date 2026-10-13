@@ -16,7 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
-/** API MediFlow di 127.0.0.1:8088. */
+/** Aplikasi dan API MediFlow di 127.0.0.1:8088. */
 public final class ApiServer {
     private static final int BATAS_BODY = 20_000_000;
 
@@ -29,6 +29,7 @@ public final class ApiServer {
         server.createContext("/", ApiServer::tangani);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
+        System.out.println("[mediflow] Aplikasi Java di http://127.0.0.1:" + port + "/");
         System.out.println("[mediflow] API Java medicflow_db di http://127.0.0.1:" + port + "/api/database");
     }
 
@@ -46,8 +47,16 @@ public final class ApiServer {
                 jalur = jalur.substring(0, jalur.length() - 1);
             }
             String metode = tukar.getRequestMethod().toUpperCase(Locale.ROOT);
-            if ("/".equals(jalur)) {
-                kirim(tukar, 200, Map.of("ok", true, "service", "mediflow", "language", "java"));
+            if ("/api".equals(jalur)) {
+                if ("GET".equals(metode)) {
+                    kirim(tukar, 200, sehat());
+                } else {
+                    kirim(tukar, 404, tidakAda());
+                }
+                return;
+            }
+            if ("/".equals(jalur) && "GET".equals(metode) && mintaJson(tukar)) {
+                kirim(tukar, 200, sehat());
                 return;
             }
             if ("/api/database".equals(jalur)) {
@@ -58,7 +67,7 @@ public final class ApiServer {
                 sumber(tukar, metode, jalur.substring("/api/".length()));
                 return;
             }
-            kirim(tukar, 404, tidakAda());
+            Situs.layani(tukar, metode, jalur);
         } finally {
             tukar.close();
         }
@@ -201,6 +210,23 @@ public final class ApiServer {
 
     private static Map<String, Object> gagal(String message) {
         return Map.of("status", false, "message", message);
+    }
+
+    private static Map<String, Object> sehat() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("ok", true);
+        body.put("service", "mediflow");
+        body.put("language", "java");
+        return body;
+    }
+
+    private static boolean mintaJson(HttpExchange tukar) {
+        String accept = tukar.getRequestHeaders().getFirst("Accept");
+        if (accept == null) {
+            return false;
+        }
+        String huruf = accept.toLowerCase(Locale.ROOT);
+        return huruf.contains("application/json") && !huruf.contains("text/html");
     }
 
     private static void kirim(HttpExchange tukar, int status, Object body) throws IOException {
