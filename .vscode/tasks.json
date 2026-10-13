@@ -27,23 +27,26 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*",
-          "endsPattern": "\\[mediflow\\]"
+          "endsPattern": "\\[mediflow\\] Aplikasi Java di"
         }
       }
     },
     {
       "label": "postdebugKill",
-      "command": "echo ${input:terminate}",
       "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\run-application.ps1",
+        "henti"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
-    }
-  ],
-  "inputs": [
-    {
-      "id": "terminate",
-      "type": "command",
-      "command": "workbench.action.tasks.terminate",
-      "args": "jalankan"
     }
   ]
 }

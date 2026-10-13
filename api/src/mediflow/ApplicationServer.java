@@ -25,12 +25,20 @@ public final class ApplicationServer {
         if (args.length > 0) {
             port = Integer.parseInt(args[0]);
         }
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        HttpServer server;
+        try {
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        } catch (IOException error) {
+            System.err.println("[mediflow] Port " + port + " sudah dipakai. Tutup server lama, lalu jalankan lagi.");
+            System.exit(1);
+            return;
+        }
         server.createContext("/", ApplicationServer::tangani);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
         System.out.println("[mediflow] Aplikasi Java di http://127.0.0.1:" + port + "/");
         System.out.println("[mediflow] API Java medicflow_db di http://127.0.0.1:" + port + "/api/database");
+        System.out.flush();
     }
 
     private static void tangani(HttpExchange tukar) throws IOException {
