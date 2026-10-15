@@ -43,6 +43,8 @@ Perlu JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memak
 #    phpMyAdmin, atau:
 #    mysql -u root < db/schema.sql
 #    mysql -u root medicflow_db < db/sesuaikan-akun-demo.sql
+#    Untuk database yang sudah ada, jalankan sekali:
+#    mysql -u root medicflow_db < db/migrations/001-registrasi-pasien.sql
 
 # 2. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
 #    Perintah ini mengganti isi 15 tabel medicflow_db.
@@ -59,6 +61,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1
 `npm run dev`, `npm run check`, dan `npm run dummy` memanggil skrip yang sama. Server hanya menjawab dari komputer ini (`127.0.0.1`).
 
 Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
+
+## Registrasi pasien
+
+Pendaftaran terbuka hanya membuat akun `pasien`; server tidak menerima atau memakai role dari request. Pasien mendaftar dengan nama, email, nomor WhatsApp berformat `08...`, dan kata sandi minimal 10 karakter. Setelah kode OTP WhatsApp benar, pasien melengkapi NIK, tanggal lahir, serta jenis kelamin untuk mengaktifkan akun dan memperoleh nomor rekam medis. Kata sandi baru disimpan dengan PBKDF2-HMAC-SHA256; login demo lama tetap didukung.
+
+Untuk database yang sudah dibuat sebelum fitur ini, jalankan migrasi `db/migrations/001-registrasi-pasien.sql` satu kali. Akun lama tetap berstatus `ACTIVE`. Sebelum menjalankan aplikasi, atur variabel lingkungan berikut:
+
+- `MEDIFLOW_OTP_SECRET`: rahasia acak minimal 32 karakter untuk menyimpan hash OTP.
+- `MEDIFLOW_DELIVERY_URL`: URL HTTPS endpoint provider WhatsApp yang menerima JSON `{"to":"+62...","message":"..."}`.
+- `MEDIFLOW_DELIVERY_TOKEN`: token Bearer untuk provider tersebut.
+
+Registrasi mengembalikan error jika database atau konfigurasi/provider pengiriman tidak tersedia; aplikasi tidak menganggap OTP terkirim. OTP berlaku 10 menit, percobaan verifikasi dibatasi, dan jumlah pendaftaran dibatasi per alamat IP serta nomor WhatsApp. Provider perlu disiapkan agar sesuai kontrak REST di atas.
 
 `db/schema.sql` adalah skema beserta data master. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `scripts\run-application.ps1 dummy` mengisi data uji dari `api/src/mediflow/DemoData.java` dan mengganti isi tabel.
 
@@ -106,6 +120,7 @@ MediFlow/
     run-application.ps1    menyusun dan menjalankan aplikasi Java
   db/
     schema.sql             skema medicflow_db
+    migrations/            perubahan skema untuk database yang sudah ada
     sesuaikan-akun-demo.sql  akun demo setelah impor dump
   api/
     lib/                   jar Jackson dan MySQL, tanpa Maven
@@ -117,6 +132,7 @@ Kode Java ada di `api/src/mediflow/`:
 | Berkas | Isi |
 | --- | --- |
 | `ApplicationServer.java` | HTTP di 127.0.0.1:8088, halaman dan jalur data |
+| `PatientRegistration.java` | Registrasi pasien, OTP, rate limit, dan pengiriman OTP via REST |
 | `WebSite.java` | Sesi per jendela dan berkas statis |
 | `HtmlPages.java` | HTML masuk dan beranda |
 | `VisitStore.java` | Masuk, kunjungan, resep, dan stok |
@@ -142,6 +158,9 @@ API tetap tersedia di proses yang sama:
 | GET, PUT, POST | `/api/database` |
 | GET, POST | `/api/users`, `/api/pasien`, `/api/poliklinik`, `/api/dokter`, `/api/jadwal_dokter`, `/api/obat`, `/api/pendaftaran_poli`, `/api/pemeriksaan`, `/api/resep`, `/api/detail_resep`, `/api/notifikasi`, `/api/otp_verifikasi`, `/api/pengambilan_obat`, `/api/mutasi_stok`, `/api/log_aktivitas` |
 | GET, PUT, PATCH, DELETE | jalur yang sama ditambah `/{id}` |
+| POST | `/api/auth/register` — nama, email, `no_telepon`, dan password; role diabaikan |
+| POST | `/api/auth/register/verify-otp` — email dan `kode_otp` |
+| POST | `/api/auth/register/profile` — email, NIK, `tanggal_lahir`, `jenis_kelamin`, dan data profil opsional |
 
 `GET /` dengan header `Accept: application/json` juga mengembalikan objek kesehatan itu. Permintaan peramban biasa mendapat halaman HTML.
 
