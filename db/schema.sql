@@ -193,6 +193,14 @@ CREATE TABLE `otp_verifikasi` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `auth_rate_limits` (
+  `scope_key` char(64) COLLATE ascii_bin NOT NULL,
+  `window_started_at` datetime NOT NULL,
+  `attempt_count` int UNSIGNED NOT NULL DEFAULT '0',
+  PRIMARY KEY (`scope_key`),
+  KEY `idx_auth_rate_window` (`window_started_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- --------------------------------------------------------
 
 --
@@ -202,6 +210,7 @@ CREATE TABLE `otp_verifikasi` (
 CREATE TABLE `pasien` (
   `id_pasien` bigint UNSIGNED NOT NULL,
   `id_user` bigint UNSIGNED NOT NULL,
+  `no_rekam_medis` varchar(24) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `nik` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
   `nomor_bpjs` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `nama_lengkap` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -338,11 +347,14 @@ CREATE TABLE `resep` (
 CREATE TABLE `users` (
   `id_user` bigint UNSIGNED NOT NULL,
   `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `role` enum('admin','pasien','dokter','farmasi') COLLATE utf8mb4_unicode_ci NOT NULL,
   `nama_lengkap` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `no_telepon` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `account_status` enum('PENDING','ACTIVE','SUSPENDED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ACTIVE',
+  `wa_terverifikasi_pada` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -435,6 +447,7 @@ ALTER TABLE `otp_verifikasi`
 ALTER TABLE `pasien`
   ADD PRIMARY KEY (`id_pasien`),
   ADD UNIQUE KEY `id_user` (`id_user`),
+  ADD UNIQUE KEY `no_rekam_medis` (`no_rekam_medis`),
   ADD UNIQUE KEY `nik` (`nik`),
   ADD UNIQUE KEY `nomor_bpjs` (`nomor_bpjs`);
 
@@ -489,7 +502,8 @@ ALTER TABLE `resep`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id_user`),
-  ADD UNIQUE KEY `username` (`username`);
+  ADD UNIQUE KEY `username` (`username`),
+  ADD UNIQUE KEY `email` (`email`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -541,7 +555,8 @@ ALTER TABLE `obat`
 -- AUTO_INCREMENT for table `otp_verifikasi`
 --
 ALTER TABLE `otp_verifikasi`
-  MODIFY `id_otp` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id_otp` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  MODIFY `kode_otp` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL;
 
 --
 -- AUTO_INCREMENT for table `pasien`
