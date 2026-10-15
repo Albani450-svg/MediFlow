@@ -14,6 +14,13 @@ public final class VisitFlowCheck {
     }
 
     static void jalan() {
+        String hashDemo = PasswordHash.hashPassword("pasien123");
+        benar(PasswordHash.verifikasiPassword("pasien123", hashDemo));
+        benar(!PasswordHash.verifikasiPassword("salah", hashDemo));
+        String hashKuat = PasswordHash.hashPasswordLambat("kata-sandi-registrasi");
+        benar(PasswordHash.verifikasiPassword("kata-sandi-registrasi", hashKuat));
+        benar(!PasswordHash.verifikasiPassword("kata-sandi-salah", hashKuat));
+
         sama(VisitRules.estimasiJamMasuk("2026-10-06", "08:00", 5, 15), "2026-10-06T02:00:00.000Z");
         sama(VisitRules.estimasiFarmasiMenit(2, List.of("Jadi", "Racikan")), 40);
         sama(VisitRules.statusKetersediaan(0, 10), "kosong");

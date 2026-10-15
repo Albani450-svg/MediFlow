@@ -188,15 +188,30 @@ final class VisitStore {
     Hasil<Void> login(String username, String password, String nomorWa) {
         Pengguna user = null;
         for (Pengguna row : basis.users) {
-            if (row.username.equalsIgnoreCase(username.trim()) && row.is_active) {
+            if (row.username.equalsIgnoreCase(username.trim()) && row.is_active
+                    && "ACTIVE".equals(row.account_status)) {
                 user = row;
                 break;
+            }
+        }
+        if (user == null && "mysql".equals(asal)) {
+            try (Connection db = Database.open()) {
+                basis = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
+                for (Pengguna row : basis.users) {
+                    if (row.username.equalsIgnoreCase(username.trim()) && row.is_active
+                            && "ACTIVE".equals(row.account_status)) {
+                        user = row;
+                        break;
+                    }
+                }
+            } catch (Exception error) {
+                System.err.println("[mediflow] Akun baru gagal dimuat: " + ColumnValues.pesan(error));
             }
         }
         if (user == null) {
             return gagal("Akun tidak ditemukan atau nonaktif.");
         }
-        if (!PasswordHash.hashPassword(password).equals(user.password_hash)) {
+        if (!PasswordHash.verifikasiPassword(password, user.password_hash)) {
             return gagal("Kata sandi tidak sesuai.");
         }
         if ("pasien".equals(user.role) && nomorWa != null) {

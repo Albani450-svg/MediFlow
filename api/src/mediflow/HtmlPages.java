@@ -63,9 +63,10 @@ final class HtmlPages {
     private String pinSerah = "";
     private boolean revealNik;
     private boolean panelTerbuka;
+    private boolean loginPasienTerbuka;
     private String peran = "pasien";
-    private String sandi = "pasien123";
-    private String waNomor;
+    private String akunLogin = "";
+    private String sandi = "";
     private long obatEdit;
     private String obatKode = "";
     private String obatNama = "";
@@ -86,7 +87,6 @@ final class HtmlPages {
 
     HtmlPages(VisitStore toko) {
         this.toko = toko;
-        this.waNomor = toko.nomorAkun("budi");
     }
 
     String html() {
@@ -228,11 +228,11 @@ final class HtmlPages {
     }
 
     private void tarik(Map<String, String> form) {
+        if (form.containsKey("akun")) {
+            akunLogin = form.get("akun").trim();
+        }
         if (form.containsKey("sandi")) {
             sandi = form.get("sandi");
-        }
-        if (form.containsKey("wa")) {
-            waNomor = form.get("wa");
         }
         if (form.containsKey("keluhan")) {
             keluhan = form.get("keluhan");
@@ -336,20 +336,24 @@ final class HtmlPages {
     private void pilihPeran(String nilai) {
         Akun akun = akun(nilai);
         peran = akun.peran;
-        sandi = akun.sandi;
-        waNomor = toko.nomorAkun(akun.username);
+        if (!"pasien".equals(peran)) {
+            akunLogin = akun.username;
+            sandi = akun.sandi;
+        } else {
+            akunLogin = "";
+            sandi = "";
+            loginPasienTerbuka = false;
+        }
         tujuan = "/";
     }
 
     private void masukAkun() {
         Akun akun = akun(peran);
-        String nomor = waNomor;
-        if ("pasien".equals(peran) && kosong(nomor)) {
-            nomor = toko.nomorAkun(akun.username);
-        }
-        VisitStore.Hasil<Void> hasil = toko.login(akun.username, sandi, "pasien".equals(peran) ? nomor : null);
+        String username = "pasien".equals(peran) && !kosong(akunLogin) ? akunLogin : akun.username;
+        VisitStore.Hasil<Void> hasil = toko.login(username, sandi, null);
         if (!hasil.ok) {
             kabar(hasil.error, true);
+            loginPasienTerbuka = "pasien".equals(peran);
             tujuan = "/";
             return;
         }
@@ -757,20 +761,55 @@ final class HtmlPages {
             sb.append("<span class=\"role-icon\">").append(item.ikon).append("</span><span class=\"role-info\"><h3>")
                     .append(e(item.judul)).append("</h3><p>").append(e(item.deskripsi)).append("</p></span></button>");
         }
-        sb.append("<div class=\"form-group\"><label class=\"form-label\">Akun terpilih</label>");
-        sb.append("<input class=\"input-field\" readonly value=\"").append(e(akun.nama)).append("\"></div>");
-        sb.append("<div class=\"form-group\"><label class=\"form-label\">Kata sandi</label>");
-        sb.append("<input class=\"input-field\" type=\"password\" name=\"sandi\" value=\"").append(e(sandi)).append("\"></div>");
         if ("pasien".equals(peran)) {
-            sb.append("<div class=\"form-group span-login\"><label class=\"form-label\">Nomor WhatsApp (pemberitahuan QR)</label>");
-            sb.append("<input class=\"input-field\" type=\"tel\" inputmode=\"numeric\" name=\"wa\" placeholder=\"Mulai dengan 08\" value=\"")
-                    .append(e(waNomor)).append("\"></div>");
+            sb.append("<button class=\"btn-outline\" id=\"buka-login-pasien\" type=\"button\"")
+                    .append(loginPasienTerbuka ? " hidden" : "")
+                    .append(">Sudah punya akun? Masuk</button>");
+            sb.append("<div class=\"patient-login-fields\" id=\"login-pasien\"")
+                    .append(loginPasienTerbuka ? "" : " hidden").append(">");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"akun-login\">Email / akun pasien</label>");
+            sb.append("<input class=\"input-field\" id=\"akun-login\" name=\"akun\" autocomplete=\"username\" value=\"")
+                    .append(e(akunLogin)).append("\"></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"sandi-login\">Kata sandi</label>");
+            sb.append("<input class=\"input-field\" id=\"sandi-login\" type=\"password\" name=\"sandi\" autocomplete=\"current-password\"></div>");
+            sb.append("<button class=\"btn-primary\" id=\"btn-login\" type=\"submit\" name=\"aksi\" value=\"masuk\">Masuk ke Sistem →</button>");
+            sb.append("</div>");
+        } else {
+            sb.append("<div class=\"form-group\"><label class=\"form-label\">Akun terpilih</label>");
+            sb.append("<input class=\"input-field\" readonly value=\"").append(e(akun.nama)).append("\"></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\">Kata sandi</label>");
+            sb.append("<input class=\"input-field\" type=\"password\" name=\"sandi\" value=\"").append(e(sandi)).append("\"></div>");
         }
         if (!notice.isEmpty()) {
             sb.append("<p class=\"notice").append(noticeError ? " error" : "").append("\">").append(e(notice)).append("</p>");
         }
-        sb.append("<button class=\"btn-primary\" id=\"btn-login\" type=\"submit\" name=\"aksi\" value=\"masuk\">Masuk ke Sistem →</button>");
-        sb.append("<p class=\"hint\">").append(e(sumberTeks())).append("</p></form></div></section>");
+        if ("pasien".equals(peran)) {
+            sb.append("<button class=\"btn-outline\" id=\"buka-registrasi\" type=\"button\">Daftar sebagai pasien baru</button>");
+        }
+        sb.append("<p class=\"hint\">").append(e(sumberTeks())).append("</p></form>");
+        if ("pasien".equals(peran)) {
+            sb.append("<section class=\"register-box\" id=\"registrasi-pasien\" hidden>");
+            sb.append("<h2>Registrasi pasien</h2><p class=\"sub\">Akun aktif setelah WhatsApp terverifikasi dan profil pasien lengkap.</p>");
+            sb.append("<div class=\"register-step\" id=\"registrasi-langkah-1\">");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-nama\">Nama lengkap</label><input class=\"input-field\" id=\"reg-nama\" maxlength=\"100\" autocomplete=\"name\" required></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-email\">Email</label><input class=\"input-field\" id=\"reg-email\" type=\"email\" maxlength=\"50\" autocomplete=\"email\" required></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-wa\">Nomor WhatsApp</label><input class=\"input-field\" id=\"reg-wa\" type=\"tel\" inputmode=\"numeric\" placeholder=\"08xxxxxxxxxx\" autocomplete=\"tel\" required></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-password\">Kata sandi (min. 10 karakter)</label><input class=\"input-field\" id=\"reg-password\" type=\"password\" minlength=\"10\" maxlength=\"200\" autocomplete=\"new-password\" required></div>");
+            sb.append("<button class=\"btn-primary\" id=\"kirim-registrasi\" type=\"button\">Kirim kode WhatsApp</button></div>");
+            sb.append("<div class=\"register-step\" id=\"registrasi-langkah-2\" hidden>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-otp\">Kode OTP</label><input class=\"input-field\" id=\"reg-otp\" inputmode=\"numeric\" maxlength=\"6\" autocomplete=\"one-time-code\" required></div>");
+            sb.append("<button class=\"btn-primary\" id=\"verifikasi-registrasi\" type=\"button\">Verifikasi WhatsApp</button></div>");
+            sb.append("<div class=\"register-step\" id=\"registrasi-langkah-3\" hidden>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-nik\">NIK (16 digit)</label><input class=\"input-field\" id=\"reg-nik\" inputmode=\"numeric\" maxlength=\"16\" required></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-tanggal\">Tanggal lahir</label><input class=\"input-field\" id=\"reg-tanggal\" type=\"date\" required></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-jk\">Jenis kelamin</label><select class=\"input-field\" id=\"reg-jk\"><option value=\"\">Pilih</option><option value=\"L\">Laki-laki</option><option value=\"P\">Perempuan</option></select></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-bpjs\">Nomor BPJS (opsional)</label><input class=\"input-field\" id=\"reg-bpjs\" maxlength=\"20\"></div>");
+            sb.append("<div class=\"form-group span-login\"><label class=\"form-label\" for=\"reg-alamat\">Alamat (opsional)</label><textarea class=\"input-field\" id=\"reg-alamat\" maxlength=\"2000\"></textarea></div>");
+            sb.append("<button class=\"btn-primary\" id=\"lengkapi-registrasi\" type=\"button\">Selesaikan registrasi</button></div>");
+            sb.append("<p class=\"notice\" id=\"registrasi-pesan\" role=\"status\" aria-live=\"polite\" hidden></p>");
+            sb.append("<button class=\"btn-outline\" id=\"tutup-registrasi\" type=\"button\">Kembali ke masuk</button></section>");
+        }
+        sb.append("</div></section>");
         return sb.toString();
     }
 

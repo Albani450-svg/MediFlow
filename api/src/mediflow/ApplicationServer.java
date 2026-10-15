@@ -71,6 +71,10 @@ public final class ApplicationServer {
                 database(tukar, metode);
                 return;
             }
+            if (jalur.startsWith("/api/auth/register")) {
+                registrasiPasien(tukar, metode, jalur);
+                return;
+            }
             if (jalur.startsWith("/api/")) {
                 sumber(tukar, metode, jalur.substring("/api/".length()));
                 return;
@@ -78,6 +82,64 @@ public final class ApplicationServer {
             WebSite.layani(tukar, metode, jalur);
         } finally {
             tukar.close();
+        }
+    }
+
+    private static void registrasiPasien(HttpExchange tukar, String metode, String jalur) throws IOException {
+        tukar.getResponseHeaders().set("Cache-Control", "no-store");
+        if (!"/api/auth/register".equals(jalur)
+                && !"/api/auth/register/verify-otp".equals(jalur)
+                && !"/api/auth/register/profile".equals(jalur)) {
+            kirim(tukar, 404, tidakAda());
+            return;
+        }
+        if (!"POST".equals(metode)) {
+            tukar.getResponseHeaders().set("Allow", "POST");
+            kirim(tukar, 405, Map.of("status", false, "message", "Gunakan metode POST."));
+            return;
+        }
+        byte[] body;
+        try {
+            body = bacaBodyTerbatas(tukar, 16_384);
+        } catch (IOException error) {
+            kirim(tukar, 413, Map.of("status", false, "message", "Body registrasi terlalu besar."));
+            return;
+        }
+        Map<String, Object> data;
+        try {
+            data = JsonConverter.objek(body);
+        } catch (JsonConverter.Rusak error) {
+            kirim(tukar, 400, Map.of("status", false, "message", "Body harus berupa objek JSON yang valid."));
+            return;
+        } catch (RuntimeException error) {
+            kirim(tukar, 400, Map.of("status", false, "message", "Body harus berupa objek JSON yang valid."));
+            return;
+        }
+        String ip = tukar.getRemoteAddress().getAddress().getHostAddress();
+        PatientRegistration.Result result;
+        if ("/api/auth/register".equals(jalur)) {
+            result = PatientRegistration.daftar(data, ip);
+        } else if ("/api/auth/register/verify-otp".equals(jalur)) {
+            result = PatientRegistration.verifikasi(data, ip);
+        } else {
+            result = PatientRegistration.lengkapiProfil(data);
+        }
+        kirim(tukar, result.status(), result.body());
+    }
+
+    private static byte[] bacaBodyTerbatas(HttpExchange tukar, int batas) throws IOException {
+        try (InputStream masuk = tukar.getRequestBody(); ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+            byte[] potong = new byte[2048];
+            int jumlah;
+            int total = 0;
+            while ((jumlah = masuk.read(potong)) >= 0) {
+                total += jumlah;
+                if (total > batas) {
+                    throw new IOException("Body registrasi terlalu besar.");
+                }
+                buffer.write(potong, 0, jumlah);
+            }
+            return buffer.toByteArray();
         }
     }
 
