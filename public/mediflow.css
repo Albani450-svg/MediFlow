@@ -81,6 +81,17 @@ body {
   .login-card { border-radius: 24px; padding: 20px 16px; box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09); }
   .login-card h2 { font-size: 16px; font-weight: 800; text-align: center; margin: 0 0 4px; }
   .sub { font-size: 11px; color: var(--text-muted); text-align: center; margin: 0 0 16px; }
+  .patient-login-fields { display: grid; gap: 10px; }
+  .patient-login-fields[hidden] { display: none !important; }
+  .register-box {
+    margin-top: 14px; padding: 18px 16px; background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+  .register-box[hidden], .register-step[hidden] { display: none !important; }
+  .register-box h2 { margin: 0 0 5px; text-align: center; font-size: 17px; }
+  .register-step { display: grid; gap: 10px; }
+  .register-box .form-group { margin-bottom: 0; }
+  .register-box .btn-primary, .register-box .btn-outline { width: 100%; }
 
   .role-option {
     display: flex; align-items: center; gap: 12px;
@@ -368,6 +379,7 @@ body {
       padding: 24px 22px;
       margin: 0;
     }
+    .register-box { grid-column: 2; }
     .login-card > h2,
     .login-card > .sub,
     .login-card > .notice,
