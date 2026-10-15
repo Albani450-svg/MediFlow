@@ -77,7 +77,8 @@ final class TableCatalog {
 
     private static Table pengguna() {
         return bangun("users", "pengguna", "id_user", stempel(
-                i("id_user"), s("username"), s("password_hash"), s("role"), s("nama_lengkap"), sz("no_telepon"), b("is_active")
+                i("id_user"), s("username"), sz("email"), s("password_hash"), s("role"), s("nama_lengkap"),
+                sz("no_telepon"), b("is_active"), s("account_status"), tz("wa_terverifikasi_pada")
         ), List.of("username", "password_hash", "role", "nama_lengkap", "no_telepon", "is_active"),
                 List.of("username", "password_hash", "role", "nama_lengkap"),
                 Set.of(),
@@ -127,7 +128,7 @@ final class TableCatalog {
 
     private static Table pasien() {
         return bangun("pasien", "pasien", "id_pasien", stempel(
-                i("id_pasien"), i("id_user"), s("nik"), sz("nomor_bpjs"), s("nama_lengkap"),
+                i("id_pasien"), i("id_user"), sz("no_rekam_medis"), s("nik"), sz("nomor_bpjs"), s("nama_lengkap"),
                 date("tanggal_lahir"), s("jenis_kelamin"), sz("alamat"), s("no_telepon"), b("terdaftar_satusehat")
         ), List.of("id_user", "nik", "nomor_bpjs", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "alamat", "no_telepon", "terdaftar_satusehat"),
                 List.of("id_user", "nik", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "no_telepon"), Set.of(),
@@ -287,7 +288,7 @@ final class TableCatalog {
                 List.of("id_user"),
                 List.of(
                         field("id_user", "required|is_natural_no_zero|is_not_unique[users.id_user]", "is_not_unique", "Akun pengguna tidak ditemukan."),
-                        field("kode_otp", "required|max_length[10]"),
+                        field("kode_otp", "required|max_length[64]"),
                         field("tujuan", "required|max_length[20]"),
                         field("expired_at", "required|valid_date[Y-m-d H:i:s]"),
                         field("verified_at", "permit_empty|valid_date[Y-m-d H:i:s]"),

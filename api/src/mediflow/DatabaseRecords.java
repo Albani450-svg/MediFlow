@@ -171,11 +171,14 @@ interface Baris {
 final class Pengguna implements Baris {
     long id_user;
     String username;
+    String email;
     String password_hash;
     String role;
     String nama_lengkap;
     String no_telepon;
     boolean is_active;
+    String account_status = "ACTIVE";
+    String wa_terverifikasi_pada;
     String created_at;
     String updated_at;
 
@@ -183,11 +186,15 @@ final class Pengguna implements Baris {
         Pengguna item = new Pengguna();
         item.id_user = DatabaseRecords.lng(baris.get("id_user"));
         item.username = DatabaseRecords.str(baris.get("username"));
+        item.email = DatabaseRecords.str(baris.get("email"));
         item.password_hash = DatabaseRecords.str(baris.get("password_hash"));
         item.role = DatabaseRecords.str(baris.get("role"));
         item.nama_lengkap = DatabaseRecords.str(baris.get("nama_lengkap"));
         item.no_telepon = DatabaseRecords.str(baris.get("no_telepon"));
         item.is_active = DatabaseRecords.bool(baris.get("is_active"));
+        String statusAkun = DatabaseRecords.str(baris.get("account_status"));
+        item.account_status = statusAkun.isBlank() ? "ACTIVE" : statusAkun;
+        item.wa_terverifikasi_pada = DatabaseRecords.str(baris.get("wa_terverifikasi_pada"));
         item.created_at = DatabaseRecords.str(baris.get("created_at"));
         item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
         return item;
@@ -198,11 +205,14 @@ final class Pengguna implements Baris {
         Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_user", id_user);
         baris.put("username", username);
+        baris.put("email", email);
         baris.put("password_hash", password_hash);
         baris.put("role", role);
         baris.put("nama_lengkap", nama_lengkap);
         baris.put("no_telepon", no_telepon);
         baris.put("is_active", is_active);
+        baris.put("account_status", account_status);
+        baris.put("wa_terverifikasi_pada", wa_terverifikasi_pada);
         baris.put("created_at", created_at);
         baris.put("updated_at", updated_at);
         return baris;
@@ -212,6 +222,7 @@ final class Pengguna implements Baris {
 final class Pasien implements Baris {
     long id_pasien;
     long id_user;
+    String no_rekam_medis;
     String nik;
     String nomor_bpjs;
     String nama_lengkap;
@@ -227,6 +238,7 @@ final class Pasien implements Baris {
         Pasien item = new Pasien();
         item.id_pasien = DatabaseRecords.lng(baris.get("id_pasien"));
         item.id_user = DatabaseRecords.lng(baris.get("id_user"));
+        item.no_rekam_medis = DatabaseRecords.str(baris.get("no_rekam_medis"));
         item.nik = DatabaseRecords.str(baris.get("nik"));
         item.nomor_bpjs = DatabaseRecords.str(baris.get("nomor_bpjs"));
         item.nama_lengkap = DatabaseRecords.str(baris.get("nama_lengkap"));
@@ -245,6 +257,7 @@ final class Pasien implements Baris {
         Map<String, Object> baris = DatabaseRecords.baris();
         baris.put("id_pasien", id_pasien);
         baris.put("id_user", id_user);
+        baris.put("no_rekam_medis", no_rekam_medis);
         baris.put("nik", nik);
         baris.put("nomor_bpjs", nomor_bpjs);
         baris.put("nama_lengkap", nama_lengkap);
