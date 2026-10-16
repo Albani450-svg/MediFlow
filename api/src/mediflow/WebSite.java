@@ -171,6 +171,15 @@ final class WebSite {
         return token != null && token.matches("[A-Za-z0-9_\\-]{16,64}");
     }
 
+    /** Jalur ikon yang diminta peramban, dipetakan ke berkas di public/assets/icons. */
+    private static String ikonAlias(String jalur) {
+        return switch (jalur) {
+            case "/favicon.ico" -> "assets/icons/48x48.png";
+            case "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png" -> "assets/icons/192x192.png";
+            default -> null;
+        };
+    }
+
     private static boolean berkas(HttpExchange tukar, String metode, String jalur) throws IOException {
         if (!"GET".equals(metode) && !"HEAD".equals(metode)) {
             return false;
@@ -179,7 +188,11 @@ final class WebSite {
             return false;
         }
         Path publik = akar().resolve("public").normalize();
-        Path tujuan = publik.resolve(jalur.substring(1)).normalize();
+        String relatif = ikonAlias(jalur);
+        if (relatif == null) {
+            relatif = jalur.substring(1);
+        }
+        Path tujuan = publik.resolve(relatif).normalize();
         if (!tujuan.startsWith(publik) || !Files.isRegularFile(tujuan)) {
             return false;
         }

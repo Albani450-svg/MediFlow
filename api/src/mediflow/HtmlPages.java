@@ -759,7 +759,7 @@ final class HtmlPages {
         Akun akun = akun(peran);
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"login-screen\"><div class=\"login-panel\"><div class=\"login-brand\">");
-        sb.append("<div class=\"login-logo\">+</div><h1>MediFlow</h1>");
+        sb.append(logo("login-logo", 56)).append("<h1>MediFlow</h1>");
         sb.append("<p>Satu kunjungan, dari daftar sampai obat diambil.</p><ol class=\"login-flow\">");
         sb.append("<li><b>1. Daftar</b>Pasien pilih poli dan datang ke rumah sakit.</li>");
         sb.append("<li><b>2. Periksa</b>Dokter memeriksa dan menulis resep.</li>");
@@ -808,7 +808,7 @@ final class HtmlPages {
     private String halamanDaftar() {
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"login-screen register-page\"><div class=\"login-panel\"><div class=\"login-brand\">");
-        sb.append("<div class=\"login-logo\">+</div><h1>MediFlow</h1>");
+        sb.append(logo("login-logo", 56)).append("<h1>MediFlow</h1>");
         sb.append("<p>Akun baru hanya untuk pasien. Setelah profil lengkap, email itu dipakai untuk masuk dan daftar poli.</p>");
         sb.append("<ol class=\"login-flow\">");
         sb.append("<li><b>1. Akun</b>Nama, email, WhatsApp, dan kata sandi.</li>");
@@ -931,7 +931,7 @@ final class HtmlPages {
         }
         int belum = toko.jumlahBelumDibaca();
         StringBuilder sb = new StringBuilder();
-        sb.append("<header class=\"app-header\"><div class=\"header-top\"><div class=\"brand\"><div class=\"brand-icon\">+</div>");
+        sb.append("<header class=\"app-header\"><div class=\"header-top\"><div class=\"brand\">").append(logo("brand-icon", 34));
         sb.append("<div class=\"brand-text\"><h1>MediFlow</h1><p>").append(e(sub)).append("</p></div></div>");
         sb.append("<div class=\"header-actions\">");
         sb.append(formBuka("inline", "panel"));
@@ -1643,6 +1643,11 @@ final class HtmlPages {
                 + "\" type=\"submit\"><span>" + ikon + "</span><span>" + e(label) + "</span></button></form>";
     }
 
+    private static String logo(String kelas, int ukuran) {
+        return "<img class=\"" + kelas + "\" src=\"/assets/icons/192x192.png\" width=\"" + ukuran
+                + "\" height=\"" + ukuran + "\" alt=\"\">";
+    }
+
     private String dokumen(String isi, String kabar) {
         return "<!DOCTYPE html>\n<html lang=\"id\">\n<head>\n"
                 + "<meta charset=\"utf-8\">\n<title>"
@@ -1651,7 +1656,9 @@ final class HtmlPages {
                 + "<meta name=\"description\" content=\"MediFlow: antrean poliklinik, rekam medis, dan e-resep rumah sakit.\">\n"
                 + "<meta name=\"theme-color\" content=\"#059669\">\n"
                 + "<meta name=\"mobile-web-app-capable\" content=\"yes\">\n"
-                + "<link rel=\"icon\" href=\"/assets/icons/24x24.png\" type=\"image/png\">\n"
+                + "<link rel=\"icon\" href=\"/assets/icons/48x48.png\" type=\"image/png\" sizes=\"48x48\">\n"
+                + "<link rel=\"icon\" href=\"/assets/icons/192x192.png\" type=\"image/png\" sizes=\"192x192\">\n"
+                + "<link rel=\"apple-touch-icon\" href=\"/assets/icons/192x192.png\" sizes=\"192x192\">\n"
                 + "<link rel=\"manifest\" href=\"/manifest.json\">\n"
                 + "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
                 + "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
