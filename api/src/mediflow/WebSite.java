@@ -9,7 +9,9 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -26,27 +28,55 @@ final class WebSite {
             return true;
         }
         if ("POST".equals(metode) && ("/tindakan".equals(jalur) || "/masuk".equals(jalur))) {
-            pos(tukar);
+            synchronized (VisitStore.GERBANG) {
+                pos(tukar);
+            }
             return true;
         }
-        if ("/".equals(jalur) || "/app".equals(jalur) || "/masuk".equals(jalur)) {
+        if ("/".equals(jalur) || "/app".equals(jalur) || "/masuk".equals(jalur) || "/daftar".equals(jalur)) {
             if (!"GET".equals(metode)) {
                 tulisHtml(tukar, 405, singkat("Metode tidak didukung."));
                 return true;
             }
-            buka(tukar, jalur);
+            synchronized (VisitStore.GERBANG) {
+                buka(tukar, jalur);
+            }
             return true;
         }
         tulisHtml(tukar, 404, singkat("Halaman tidak ditemukan."));
         return true;
     }
 
+    static void selaraskanSesi() {
+        List<VisitStore> toko = new ArrayList<>();
+        synchronized (KUNCI) {
+            for (Sesi sesi : SESI.values()) {
+                toko.add(sesi.toko);
+            }
+        }
+        for (VisitStore item : toko) {
+            item.selaraskanAkun();
+        }
+    }
+
+    private static String halamanPublik(String jalur) {
+        if ("/app".equals(jalur)) {
+            return "/app";
+        }
+        if ("/daftar".equals(jalur)) {
+            return "/daftar";
+        }
+        return "/";
+    }
+
     private static void buka(HttpExchange tukar, String jalur) throws IOException {
-        String token = kueri(tukar).get("sesi");
+        Map<String, String> pertanyaan = kueri(tukar);
+        String token = pertanyaan.get("sesi");
+        String halaman = halamanPublik(jalur);
         if (!tokenSah(token)) {
             token = tokenBaru();
             ambil(token);
-            alih(tukar, 302, ("/app".equals(jalur) ? "/app" : "/") + "?sesi=" + token);
+            alih(tukar, 302, halaman + "?sesi=" + token);
             return;
         }
         Sesi sesi = ambil(token);
@@ -61,8 +91,11 @@ final class WebSite {
                 return;
             }
             sesi.layar.token = token;
-            sesi.layar.halaman = "/app".equals(jalur) ? "/app" : "/";
-            sesi.layar.tujuan = sesi.layar.halaman;
+            sesi.layar.halaman = halaman;
+            sesi.layar.tujuan = halaman;
+            if (!masuk && "/".equals(halaman)) {
+                sesi.layar.akunDariAlamat(pertanyaan.get("akun"));
+            }
             try {
                 tulisHtml(tukar, 200, sesi.layar.html());
             } catch (RuntimeException error) {
@@ -97,8 +130,7 @@ final class WebSite {
         synchronized (sesi) {
             sesi.layar.token = token;
             sesi.layar.tindakan(form);
-            String tujuan = "/app".equals(sesi.layar.tujuan) ? "/app" : "/";
-            alih(tukar, 303, tujuan + "?sesi=" + token);
+            alih(tukar, 303, halamanPublik(sesi.layar.tujuan) + "?sesi=" + token);
         }
     }
 

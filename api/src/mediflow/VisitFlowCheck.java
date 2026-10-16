@@ -77,6 +77,14 @@ public final class VisitFlowCheck {
         sama(siti.resep.kode_qr_unik, "MF-SITI-SIAP");
         benar(toko.kunjungan().stream().anyMatch(row -> row.tahap == 7 && "Dewi Lestari".equals(row.pasienNama)));
 
+        for (Pengguna user : awal.users) {
+            if ("budi".equals(user.username)) {
+                user.email = "budi@rs.local";
+            }
+        }
+        benar(!toko.login("budi@rs.local", "bukan-sandi", null).ok);
+        pastikan(toko.login("budi@rs.local", "pasien123", null));
+        toko.logout();
         benar(!toko.login("budi", "bukan-sandi", null).ok);
         pastikan(toko.login("budi", "pasien123", null));
         VisitStore.Kunjungan awalKunjungan = toko.kunjunganById(demo);

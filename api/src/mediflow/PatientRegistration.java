@@ -32,6 +32,18 @@ final class PatientRegistration {
     private PatientRegistration() {}
 
     static Result daftar(Map<String, Object> request, String ip) {
+        synchronized (VisitStore.GERBANG) {
+            return simpanPendaftaran(request, ip);
+        }
+    }
+
+    static boolean otpSiap() {
+        return env("MEDIFLOW_OTP_SECRET").length() >= 32
+                && !env("MEDIFLOW_DELIVERY_TOKEN").isBlank()
+                && endpointAman(env("MEDIFLOW_DELIVERY_URL"));
+    }
+
+    private static Result simpanPendaftaran(Map<String, Object> request, String ip) {
         String nama = teks(request.get("nama_lengkap")).trim();
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
         String wa = teks(request.get("no_telepon")).replaceAll("\\s+", "");
@@ -40,7 +52,7 @@ final class PatientRegistration {
         String deliveryUrl = env("MEDIFLOW_DELIVERY_URL");
         String deliveryToken = env("MEDIFLOW_DELIVERY_TOKEN");
 
-        if (nama.isBlank() || nama.length() > 100
+        if (nama.isBlank() || nama.length() > 100 || email.length() > 50
                 || !email.matches("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,50}@[A-Za-z0-9.-]{1,40}\\.[A-Za-z]{2,}$")
                 || !wa.matches("^08[0-9]{8,12}$")
                 || password.length() < 10 || password.length() > 200) {
@@ -92,6 +104,7 @@ final class PatientRegistration {
                 }
                 kirimOtp(deliveryUrl, deliveryToken, wa, otp);
                 db.commit();
+                WebSite.selaraskanSesi();
                 return baik(202, "Kode verifikasi dikirim ke WhatsApp yang didaftarkan.");
             } catch (Exception error) {
                 db.rollback();
@@ -107,6 +120,12 @@ final class PatientRegistration {
     }
 
     static Result verifikasi(Map<String, Object> request, String ip) {
+        synchronized (VisitStore.GERBANG) {
+            return simpanVerifikasi(request, ip);
+        }
+    }
+
+    private static Result simpanVerifikasi(Map<String, Object> request, String ip) {
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
         String kode = teks(request.get("kode_otp")).trim();
         String secret = env("MEDIFLOW_OTP_SECRET");
@@ -167,6 +186,7 @@ final class PatientRegistration {
                 if (!MessageDigest.isEqual(hash.getBytes(StandardCharsets.US_ASCII),
                         hashOtp(kode, secret).getBytes(StandardCharsets.US_ASCII))) {
                     db.commit();
+                    WebSite.selaraskanSesi();
                     return gagal(400, "Kode OTP tidak cocok.");
                 }
                 try (PreparedStatement ps = db.prepareStatement(
@@ -181,6 +201,7 @@ final class PatientRegistration {
                     ps.executeUpdate();
                 }
                 db.commit();
+                WebSite.selaraskanSesi();
                 return baik(200, "Nomor WhatsApp terverifikasi. Lengkapi profil pasien.");
             } catch (SQLException error) {
                 db.rollback();
@@ -195,6 +216,12 @@ final class PatientRegistration {
     }
 
     static Result lengkapiProfil(Map<String, Object> request) {
+        synchronized (VisitStore.GERBANG) {
+            return simpanProfil(request);
+        }
+    }
+
+    private static Result simpanProfil(Map<String, Object> request) {
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
         String nik = teks(request.get("nik")).trim();
         String tanggal = teks(request.get("tanggal_lahir")).trim();
@@ -276,6 +303,7 @@ final class PatientRegistration {
                     ps.executeUpdate();
                 }
                 db.commit();
+                WebSite.selaraskanSesi();
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("id_pasien", pasienId);
                 data.put("no_rekam_medis", nomorRekamMedis);

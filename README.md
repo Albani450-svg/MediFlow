@@ -64,7 +64,9 @@ Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`,
 
 ## Registrasi pasien
 
-Pendaftaran terbuka hanya membuat akun `pasien`; server tidak menerima atau memakai role dari request. Pasien mendaftar dengan nama, email, nomor WhatsApp berformat `08...`, dan kata sandi minimal 10 karakter. Setelah kode OTP WhatsApp benar, pasien melengkapi NIK, tanggal lahir, serta jenis kelamin untuk mengaktifkan akun dan memperoleh nomor rekam medis. Kata sandi baru disimpan dengan PBKDF2-HMAC-SHA256; login demo lama tetap didukung.
+Halaman pendaftaran ada di http://127.0.0.1:8088/daftar. Tautan **Daftar sebagai pasien baru** juga ada di layar masuk saat peran Pasien dipilih. Pendaftaran terbuka hanya membuat akun `pasien`; server tidak menerima atau memakai role dari request. Pasien mendaftar dengan nama, email (maksimal 50 karakter, sekaligus nama akun), nomor WhatsApp berformat `08...`, dan kata sandi minimal 10 karakter. Setelah kode OTP WhatsApp benar, pasien melengkapi NIK, tanggal lahir, serta jenis kelamin untuk mengaktifkan akun dan memperoleh nomor rekam medis. Kata sandi baru disimpan dengan PBKDF2-HMAC-SHA256; login demo lama tetap didukung. Selesai mendaftar, pasien kembali ke layar masuk dan masuk dengan email yang sama.
+
+Akun baru ditulis ke `medicflow_db`, lalu disalin ke sesi yang sedang berjalan. Simpanan layar berikutnya ikut menyimpan akun itu, jadi jendela lain tidak menimpa pendaftaran yang baru selesai.
 
 Untuk database yang sudah dibuat sebelum fitur ini, jalankan migrasi `db/migrations/001-registrasi-pasien.sql` satu kali. Akun lama tetap berstatus `ACTIVE`. Sebelum menjalankan aplikasi, atur variabel lingkungan berikut:
 
@@ -134,7 +136,7 @@ Kode Java ada di `api/src/mediflow/`:
 | `ApplicationServer.java` | HTTP di 127.0.0.1:8088, halaman dan jalur data |
 | `PatientRegistration.java` | Registrasi pasien, OTP, rate limit, dan pengiriman OTP via REST |
 | `WebSite.java` | Sesi per jendela dan berkas statis |
-| `HtmlPages.java` | HTML masuk dan beranda |
+| `HtmlPages.java` | HTML masuk, registrasi pasien, dan beranda |
 | `VisitStore.java` | Masuk, kunjungan, resep, dan stok |
 | `VisitRules.java` | Tahap, bentrok jadwal, stok, dan teks notifikasi |
 | `ScreenText.java` | Sepuluh langkah, empat bagian, tanggal, dan rupiah |

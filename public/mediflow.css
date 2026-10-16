@@ -87,11 +87,23 @@ body {
     margin-top: 14px; padding: 18px 16px; background: #fff; border: 1px solid #e2e8f0;
     border-radius: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
   }
+  .register-page .register-box { margin-top: 0; border-radius: 24px; padding: 20px 16px; }
   .register-box[hidden], .register-step[hidden] { display: none !important; }
   .register-box h2 { margin: 0 0 5px; text-align: center; font-size: 17px; }
+  .register-progress {
+    list-style: none; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    margin: 0 0 14px; padding: 0;
+  }
+  .register-progress li {
+    text-align: center; font-size: 11px; font-weight: 700; color: var(--text-muted);
+    padding: 6px 4px 8px; border-bottom: 3px solid #e2e8f0;
+  }
+  .register-progress li.aktif { color: var(--primary-dark); border-bottom-color: var(--primary); }
+  .register-progress li.selesai { color: var(--primary); border-bottom-color: var(--primary-light); }
   .register-step { display: grid; gap: 10px; }
   .register-box .form-group { margin-bottom: 0; }
   .register-box .btn-primary, .register-box .btn-outline { width: 100%; }
+  a.btn-outline, a.btn-primary { display: block; text-align: center; text-decoration: none; }
 
   .role-option {
     display: flex; align-items: center; gap: 12px;
@@ -380,10 +392,12 @@ body {
       margin: 0;
     }
     .register-box { grid-column: 2; }
+    .register-page .register-box { padding: 24px 22px; }
     .login-card > h2,
     .login-card > .sub,
     .login-card > .notice,
     .login-card > .btn-primary,
+    .login-card > .btn-outline,
     .login-card > .hint,
     .login-card > .span-login { grid-column: 1 / -1; }
     .login-card > .role-option,

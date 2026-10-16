@@ -1,4 +1,4 @@
-var CACHE = 'mediflow-v3';
+var CACHE = 'mediflow-v4';
 var BERKAS = [
   '/mediflow.css',
   '/application.js',
@@ -36,7 +36,8 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (url.pathname === '/' || url.pathname === '/app' || url.pathname === '/masuk' || url.pathname.indexOf('/api') === 0) {
+  if (url.pathname === '/' || url.pathname === '/app' || url.pathname === '/masuk'
+      || url.pathname === '/daftar' || url.pathname.indexOf('/api') === 0) {
     return;
   }
   event.respondWith(

@@ -29,19 +29,56 @@
     window.setTimeout(function () { el.remove(); }, 4000);
   });
 
-  var registrasi = document.getElementById('registrasi-pasien');
-  var bukaRegistrasi = document.getElementById('buka-registrasi');
-  var tutupRegistrasi = document.getElementById('tutup-registrasi');
   var bukaLoginPasien = document.getElementById('buka-login-pasien');
   var loginPasien = document.getElementById('login-pasien');
+  var pesanDaftar = sessionStorage.getItem('mediflow-daftar-pesan');
+  if (pesanDaftar) {
+    sessionStorage.removeItem('mediflow-daftar-pesan');
+    var kartuMasuk = document.querySelector('.login-card');
+    if (kartuMasuk) {
+      var pemberitahuan = document.createElement('p');
+      pemberitahuan.className = 'notice';
+      pemberitahuan.setAttribute('role', 'status');
+      pemberitahuan.textContent = pesanDaftar;
+      var petunjuk = kartuMasuk.querySelector('.hint');
+      if (petunjuk) kartuMasuk.insertBefore(pemberitahuan, petunjuk);
+      else kartuMasuk.appendChild(pemberitahuan);
+    }
+    if (loginPasien && !loginPasien.hidden) {
+      var sandiSiap = document.getElementById('sandi-login');
+      if (sandiSiap) sandiSiap.focus();
+    }
+  }
+  if (bukaLoginPasien && loginPasien) {
+    bukaLoginPasien.addEventListener('click', function () {
+      loginPasien.hidden = false;
+      bukaLoginPasien.hidden = true;
+      document.getElementById('akun-login').focus();
+    });
+  }
+
+  var registrasi = document.getElementById('registrasi-pasien');
   var pesanRegistrasi = document.getElementById('registrasi-pesan');
-  var emailRegistrasi = '';
+  var emailRegistrasi = sessionStorage.getItem('mediflow-daftar-email') || '';
 
   function tampilkanPesanRegistrasi(teks, gagal) {
     if (!pesanRegistrasi) return;
     pesanRegistrasi.hidden = false;
     pesanRegistrasi.className = gagal ? 'notice error' : 'notice';
     pesanRegistrasi.textContent = teks;
+  }
+
+  function aturLangkah(nomor) {
+    [1, 2, 3].forEach(function (n) {
+      var langkah = document.getElementById('registrasi-langkah-' + n);
+      if (langkah) langkah.hidden = n !== nomor;
+    });
+    document.querySelectorAll('.register-progress li').forEach(function (item) {
+      var nilai = Number(item.getAttribute('data-langkah'));
+      item.classList.toggle('aktif', nilai === nomor);
+      item.classList.toggle('selesai', nilai < nomor);
+    });
+    sessionStorage.setItem('mediflow-daftar-langkah', String(nomor));
   }
 
   function dataJson(email) {
@@ -71,34 +108,31 @@
     });
   }
 
-  if (registrasi && bukaRegistrasi) {
-    if (bukaLoginPasien && loginPasien) {
-      bukaLoginPasien.addEventListener('click', function () {
-        loginPasien.hidden = false;
-        bukaLoginPasien.hidden = true;
-        document.getElementById('akun-login').focus();
+  if (registrasi && location.pathname === '/daftar') {
+    var langkahSimpan = sessionStorage.getItem('mediflow-daftar-langkah');
+    if (emailRegistrasi && (langkahSimpan === '2' || langkahSimpan === '3')) {
+      aturLangkah(Number(langkahSimpan));
+    } else {
+      document.getElementById('reg-nama').focus();
+    }
+    var kembali = document.querySelector('.register-box a.btn-outline');
+    if (kembali) {
+      kembali.addEventListener('click', function () {
+        sessionStorage.removeItem('mediflow-daftar-email');
+        sessionStorage.removeItem('mediflow-daftar-langkah');
       });
     }
-    bukaRegistrasi.addEventListener('click', function () {
-      registrasi.hidden = !registrasi.hidden;
-      bukaRegistrasi.textContent = registrasi.hidden ? 'Daftar sebagai pasien baru' : 'Tutup registrasi';
-      if (!registrasi.hidden) document.getElementById('reg-nama').focus();
-    });
-    tutupRegistrasi.addEventListener('click', function () {
-      registrasi.hidden = true;
-      bukaRegistrasi.textContent = 'Daftar sebagai pasien baru';
-    });
 
     document.getElementById('kirim-registrasi').addEventListener('click', function (event) {
       var data = dataJson('');
-      if (!data.nama_lengkap || !data.email || !data.no_telepon || data.password.length < 10) {
-        tampilkanPesanRegistrasi('Lengkapi nama, email, nomor WhatsApp, dan kata sandi minimal 10 karakter.', true);
+      if (!data.nama_lengkap || !data.email || !/^08[0-9]{8,12}$/.test(data.no_telepon) || data.password.length < 10) {
+        tampilkanPesanRegistrasi('Lengkapi nama, email, nomor WhatsApp 08..., dan kata sandi minimal 10 karakter.', true);
         return;
       }
       emailRegistrasi = data.email;
+      sessionStorage.setItem('mediflow-daftar-email', emailRegistrasi);
       kirimRegistrasi('/api/auth/register', data, event.currentTarget, function (body) {
-        document.getElementById('registrasi-langkah-1').hidden = true;
-        document.getElementById('registrasi-langkah-2').hidden = false;
+        aturLangkah(2);
         tampilkanPesanRegistrasi(body.message, false);
         document.getElementById('reg-otp').focus();
       });
@@ -114,9 +148,9 @@
         email: emailRegistrasi,
         kode_otp: kode
       }, event.currentTarget, function (body) {
-        document.getElementById('registrasi-langkah-2').hidden = true;
-        document.getElementById('registrasi-langkah-3').hidden = false;
+        aturLangkah(3);
         tampilkanPesanRegistrasi(body.message, false);
+        document.getElementById('reg-nik').focus();
       });
     });
 
@@ -134,13 +168,11 @@
         return;
       }
       kirimRegistrasi('/api/auth/register/profile', profil, event.currentTarget, function (body) {
-        document.getElementById('registrasi-langkah-3').hidden = true;
-        document.getElementById('akun-login').value = emailRegistrasi;
-        document.getElementById('sandi-login').value = document.getElementById('reg-password').value;
-        if (bukaLoginPasien) bukaLoginPasien.click();
-        var waLogin = document.querySelector('input[name="wa"]');
-        if (waLogin) waLogin.value = document.getElementById('reg-wa').value.trim();
-        tampilkanPesanRegistrasi(body.message + ' Nomor rekam medis: ' + body.data.no_rekam_medis, false);
+        var nomor = body.data && body.data.no_rekam_medis ? body.data.no_rekam_medis : '';
+        sessionStorage.setItem('mediflow-daftar-pesan', body.message + (nomor ? ' Nomor rekam medis: ' + nomor : ''));
+        sessionStorage.removeItem('mediflow-daftar-email');
+        sessionStorage.removeItem('mediflow-daftar-langkah');
+        location.assign('/?sesi=' + encodeURIComponent(sesi) + '&akun=' + encodeURIComponent(emailRegistrasi));
       });
     });
   }
