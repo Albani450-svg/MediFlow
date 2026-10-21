@@ -1,4 +1,4 @@
-var CACHE = 'mediflow-v5';
+var CACHE = 'mediflow-v6';
 var BERKAS = [
   '/mediflow.css',
   '/application.js',

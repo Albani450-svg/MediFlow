@@ -1312,7 +1312,7 @@ final class HtmlPages {
             sb.append(sembunyi("aksi", "stok")).append(sembunyi("id_obat", Long.toString(obat.id_obat)));
             sb.append("<div><h4>").append(e(obat.nama_obat)).append("</h4><p>").append(e(obat.kode_kemenkes)).append(" • ")
                     .append(e(obat.satuan)).append(" • minimum ").append(obat.stok_minimum).append(" • ").append(e(obat.jenis_obat)).append("</p></div>");
-            sb.append("<div class=\"med-side\"><input class=\"input-field\" style=\"width:64px;\" type=\"number\" name=\"stok\" value=\"")
+            sb.append("<div class=\"med-side\"><input class=\"input-field\" style=\"width:5.5rem;\" type=\"number\" name=\"stok\" value=\"")
                     .append(e(nilai)).append("\"><button class=\"btn-small\" type=\"submit\">Simpan</button></div></form>");
         }
         sb.append("</div></section>").append(jejak());
