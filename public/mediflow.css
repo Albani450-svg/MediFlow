@@ -1,12 +1,12 @@
 :root {
   color-scheme: light;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  --text-caption: 13px;
-  --text-secondary: 15px;
-  --text-body: 16px;
-  --text-title: 18px;
-  --text-page: 22px;
-  --text-display: 28px;
+  --text-caption: 11px;
+  --text-secondary: 12px;
+  --text-body: 13px;
+  --text-title: 14px;
+  --text-page: 16px;
+  --text-display: 18px;
   --leading: 1.5;
   --gutter: 16px;
   --radius: 16px;
@@ -157,7 +157,7 @@ body {
   }
   .input-field, .select-field, .textarea-field {
     width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #cbd5e1;
-    font-size: var(--text-body); font-weight: 600; color: var(--text-main); background: #fff; outline: none;
+    font-size: 16px; /* 16px below 960px so iOS does not zoom on focus */ font-weight: 600; color: var(--text-main); background: #fff; outline: none;
     line-height: 1.4;
   }
   .textarea-field { resize: vertical; min-height: 68px; line-height: 1.4; }
@@ -425,11 +425,12 @@ body {
 
   @media (min-width: 960px) {
     :root {
-      --text-caption: 14px;
-      --text-secondary: 16px;
-      --text-title: 20px;
-      --text-page: 24px;
-      --text-display: 34px;
+      --text-caption: 12px;
+      --text-secondary: 13px;
+      --text-body: 14px;
+      --text-title: 15px;
+      --text-page: 18px;
+      --text-display: 22px;
       --gutter: 24px;
     }
     body { --shell-width: min(1440px, calc(100% - 32px)); }
@@ -517,7 +518,7 @@ body {
     .layout > .span-all { grid-column: 1 / -1; }
     .layout .card { margin-bottom: 0; }
 
-    .input-field, .select-field, .textarea-field { padding: 12px 14px; }
+    .input-field, .select-field, .textarea-field { padding: 12px 14px; font-size: var(--text-body); }
     .wide .info-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .form-row.compact { grid-template-columns: minmax(0, 1fr) 140px; }
     .form-row.compact-btn { grid-template-columns: minmax(0, 1fr) auto; }
