@@ -1,12 +1,12 @@
 :root {
   color-scheme: light;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  --text-caption: 11px;
-  --text-secondary: 12px;
-  --text-body: 13px;
-  --text-title: 14px;
-  --text-page: 16px;
-  --text-display: 18px;
+  --text-caption: 10px;
+  --text-secondary: 11px;
+  --text-body: 12px;
+  --text-title: 13px;
+  --text-page: 14px;
+  --text-display: 16px;
   --leading: 1.5;
   --gutter: 16px;
   --radius: 16px;
@@ -157,7 +157,7 @@ body {
   }
   .input-field, .select-field, .textarea-field {
     width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #cbd5e1;
-    font-size: 16px; /* 16px below 960px so iOS does not zoom on focus */ font-weight: 600; color: var(--text-main); background: #fff; outline: none;
+    font-size: var(--text-body); font-weight: 600; color: var(--text-main); background: #fff; outline: none;
     line-height: 1.4;
   }
   .textarea-field { resize: vertical; min-height: 68px; line-height: 1.4; }
@@ -425,12 +425,12 @@ body {
 
   @media (min-width: 960px) {
     :root {
-      --text-caption: 12px;
-      --text-secondary: 13px;
-      --text-body: 14px;
-      --text-title: 15px;
-      --text-page: 18px;
-      --text-display: 22px;
+      --text-caption: 11px;
+      --text-secondary: 12px;
+      --text-body: 13px;
+      --text-title: 14px;
+      --text-page: 16px;
+      --text-display: 18px;
       --gutter: 24px;
     }
     body { --shell-width: min(1440px, calc(100% - 32px)); }
