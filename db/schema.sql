@@ -218,6 +218,9 @@ CREATE TABLE `pasien` (
   `jenis_kelamin` enum('L','P') COLLATE utf8mb4_unicode_ci NOT NULL,
   `alamat` text COLLATE utf8mb4_unicode_ci,
   `no_telepon` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `no_satusehat` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `privacy_consent_at` datetime DEFAULT NULL,
+  `privacy_policy_version` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `terdaftar_satusehat` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -367,6 +370,22 @@ INSERT INTO `users` (`id_user`, `username`, `password_hash`, `role`, `nama_lengk
 (1, 'admin', '$2y$10$abcdefghijklmnopqrstuv', 'admin', 'Administrator', '081234567890', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
 (2, 'dokter01', '$2y$10$abcdefghijklmnopqrstuv', 'dokter', 'Dr. Ahmad', '081234567891', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
 (3, 'farmasi01', '$2y$10$abcdefghijklmnopqrstuv', 'farmasi', 'Petugas Farmasi', '081234567892', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44');
+
+CREATE TABLE `staff_registration_requests` (
+  `id_request` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_user` bigint UNSIGNED NOT NULL,
+  `license_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `specialization` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `id_poli` bigint UNSIGNED DEFAULT NULL,
+  `status` enum('PENDING','APPROVED','REJECTED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PENDING',
+  `reviewed_by` bigint UNSIGNED DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_request`),
+  UNIQUE KEY `uq_staff_request_user` (`id_user`),
+  KEY `idx_staff_request_status` (`status`),
+  KEY `idx_staff_request_poli` (`id_poli`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Indexes for dumped tables
@@ -682,6 +701,11 @@ ALTER TABLE `pengambilan_obat`
 --
 ALTER TABLE `resep`
   ADD CONSTRAINT `fk_resep_pendaftaran` FOREIGN KEY (`id_pendaftaran`) REFERENCES `pendaftaran_poli` (`id_pendaftaran`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE `staff_registration_requests`
+  ADD CONSTRAINT `fk_staff_request_user` FOREIGN KEY (`id_user`) REFERENCES `users` (`id_user`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_staff_request_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id_user`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_staff_request_poli` FOREIGN KEY (`id_poli`) REFERENCES `poliklinik` (`id_poli`) ON DELETE RESTRICT ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
