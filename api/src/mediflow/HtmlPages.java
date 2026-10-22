@@ -18,7 +18,7 @@ final class HtmlPages {
 
     private static final List<Akun> AKUN = List.of(
             new Akun("pasien", "dummy_pasien01", "pasien123", "Siti Rahma Dummy • dummy_pasien01", "Pasien",
-                    "dummy_pasien01 (Siti, obat sudah diambil) atau dummy_pasien02 (Andi, masih menunggu). Kata sandi pasien123", "👤"),
+                    "Daftar poli, lihat giliran, pilih apotek, dan tunjukkan kode pengambilan", "👤"),
             new Akun("dokter", "dokter01", "dokter123", "Dr. Ahmad • dokter01", "Dokter",
                     "Periksa pasien, tulis diagnosis, dan kirim resep ke farmasi", "🩺"),
             new Akun("admin", "admin", "admin123", "Administrator • admin", "Admin & Perawat",
@@ -757,7 +757,7 @@ final class HtmlPages {
         Akun akun = akun(peran);
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"login-screen\"><div class=\"login-panel\"><div class=\"login-brand\">");
-        sb.append("<div class=\"login-logo\">+</div><h1>MediFlow</h1>");
+        sb.append(logo("login-logo", 56)).append("<h1>MediFlow</h1>");
         sb.append("<p>Satu kunjungan, dari daftar sampai obat diambil.</p><ol class=\"login-flow\">");
         sb.append("<li><b>1. Daftar</b>Pasien pilih poli dan datang ke rumah sakit.</li>");
         sb.append("<li><b>2. Periksa</b>Dokter memeriksa dan menulis resep.</li>");
@@ -936,7 +936,7 @@ final class HtmlPages {
         }
         int belum = toko.jumlahBelumDibaca();
         StringBuilder sb = new StringBuilder();
-        sb.append("<header class=\"app-header\"><div class=\"header-top\"><div class=\"brand\"><div class=\"brand-icon\">+</div>");
+        sb.append("<header class=\"app-header\"><div class=\"header-top\"><div class=\"brand\">").append(logo("brand-icon", 34));
         sb.append("<div class=\"brand-text\"><h1>MediFlow</h1><p>").append(e(sub)).append("</p></div></div>");
         sb.append("<div class=\"header-actions\">");
         sb.append(formBuka("inline", "panel"));
@@ -1690,6 +1690,11 @@ final class HtmlPages {
         sb.append(navItem("resep", "💊", "E-Resep", aktifTab));
         sb.append("</nav>");
         return sb.toString();
+    }
+
+    private static String logo(String kelas, int ukuran) {
+        return "<img class=\"" + kelas + "\" src=\"/assets/icons/192x192.png\" width=\"" + ukuran
+                + "\" height=\"" + ukuran + "\" alt=\"\">";
     }
 
     private String navItem(String id, String ikon, String label, String aktifTab) {
