@@ -144,6 +144,13 @@ public final class ApplicationServer {
     }
 
     private static void database(HttpExchange tukar, String metode) throws IOException {
+        if ("PUT".equals(metode) || "POST".equals(metode)) {
+            kirim(tukar, 403, Map.of(
+                    "ok", false,
+                    "error", "Snapshot database bersifat hanya-baca. Gunakan endpoint khusus yang terotorisasi."
+            ));
+            return;
+        }
         try (Connection db = Database.open()) {
             if ("GET".equals(metode)) {
                 Map<String, Object> body = new LinkedHashMap<>();
@@ -176,6 +183,15 @@ public final class ApplicationServer {
         TableCatalog.Table tabel = TableCatalog.BY_NAME.get(bagian[0]);
         if (tabel == null) {
             kirim(tukar, 404, tidakAda());
+            return;
+        }
+        if (("users".equals(tabel.name()) || "pasien".equals(tabel.name()))
+                && ("POST".equals(metode) || "PUT".equals(metode)
+                || "PATCH".equals(metode) || "DELETE".equals(metode))) {
+            kirim(tukar, 403, Map.of(
+                    "status", false,
+                    "message", "Akun dan profil pasien tidak dapat diubah melalui CRUD umum. Gunakan alur registrasi atau administrasi staf."
+            ));
             return;
         }
         Long id = null;

@@ -129,7 +129,8 @@ final class TableCatalog {
     private static Table pasien() {
         return bangun("pasien", "pasien", "id_pasien", stempel(
                 i("id_pasien"), i("id_user"), sz("no_rekam_medis"), s("nik"), sz("nomor_bpjs"), s("nama_lengkap"),
-                date("tanggal_lahir"), s("jenis_kelamin"), sz("alamat"), s("no_telepon"), b("terdaftar_satusehat")
+                date("tanggal_lahir"), s("jenis_kelamin"), sz("alamat"), s("no_telepon"), sz("no_satusehat"),
+                tz("privacy_consent_at"), sz("privacy_policy_version"), b("terdaftar_satusehat")
         ), List.of("id_user", "nik", "nomor_bpjs", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "alamat", "no_telepon", "terdaftar_satusehat"),
                 List.of("id_user", "nik", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "no_telepon"), Set.of(),
                 List.of("id_user", "nik", "jenis_kelamin"),

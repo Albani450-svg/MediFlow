@@ -16,6 +16,8 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -24,6 +26,7 @@ import javax.crypto.spec.SecretKeySpec;
 final class PatientRegistration {
     record Result(int status, Map<String, Object> body) {}
 
+    private static final String PRIVACY_POLICY_VERSION = "1.0";
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .followRedirects(HttpClient.Redirect.NEVER)
@@ -32,27 +35,20 @@ final class PatientRegistration {
     private PatientRegistration() {}
 
     static Result daftar(Map<String, Object> request, String ip) {
-        synchronized (VisitStore.GERBANG) {
-            return simpanPendaftaran(request, ip);
-        }
-    }
-
-    static boolean otpSiap() {
-        return env("MEDIFLOW_OTP_SECRET").length() >= 32
-                && !env("MEDIFLOW_DELIVERY_TOKEN").isBlank()
-                && endpointAman(env("MEDIFLOW_DELIVERY_URL"));
-    }
-
-    private static Result simpanPendaftaran(Map<String, Object> request, String ip) {
         String nama = teks(request.get("nama_lengkap")).trim();
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
         String wa = teks(request.get("no_telepon")).replaceAll("\\s+", "");
         String password = teks(request.get("password"));
+        String role = teks(request.get("role")).trim().toLowerCase(java.util.Locale.ROOT);
+        if (role.isBlank()) {
+            role = "pasien";
+        }
         String secret = env("MEDIFLOW_OTP_SECRET");
         String deliveryUrl = env("MEDIFLOW_DELIVERY_URL");
         String deliveryToken = env("MEDIFLOW_DELIVERY_TOKEN");
 
-        if (nama.isBlank() || nama.length() > 100 || email.length() > 50
+        if (!("pasien".equals(role) || "dokter".equals(role) || "farmasi".equals(role))
+                || nama.isBlank() || nama.length() > 100
                 || !email.matches("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,50}@[A-Za-z0-9.-]{1,40}\\.[A-Za-z]{2,}$")
                 || !wa.matches("^08[0-9]{8,12}$")
                 || password.length() < 10 || password.length() > 200) {
@@ -79,13 +75,14 @@ final class PatientRegistration {
                 long userId;
                 try (PreparedStatement ps = db.prepareStatement(
                         "INSERT INTO users (username, email, password_hash, role, nama_lengkap, no_telepon, is_active, account_status) "
-                                + "VALUES (?, ?, ?, 'pasien', ?, ?, 0, 'PENDING')",
+                                + "VALUES (?, ?, ?, ?, ?, ?, 0, 'PENDING')",
                         Statement.RETURN_GENERATED_KEYS)) {
                     ps.setString(1, email);
                     ps.setString(2, email);
                     ps.setString(3, PasswordHash.hashPasswordLambat(password));
-                    ps.setString(4, nama);
-                    ps.setString(5, wa);
+                    ps.setString(4, role);
+                    ps.setString(5, nama);
+                    ps.setString(6, wa);
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) {
@@ -104,7 +101,6 @@ final class PatientRegistration {
                 }
                 kirimOtp(deliveryUrl, deliveryToken, wa, otp);
                 db.commit();
-                WebSite.selaraskanSesi();
                 return baik(202, "Kode verifikasi dikirim ke WhatsApp yang didaftarkan.");
             } catch (Exception error) {
                 db.rollback();
@@ -120,12 +116,6 @@ final class PatientRegistration {
     }
 
     static Result verifikasi(Map<String, Object> request, String ip) {
-        synchronized (VisitStore.GERBANG) {
-            return simpanVerifikasi(request, ip);
-        }
-    }
-
-    private static Result simpanVerifikasi(Map<String, Object> request, String ip) {
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
         String kode = teks(request.get("kode_otp")).trim();
         String secret = env("MEDIFLOW_OTP_SECRET");
@@ -144,7 +134,7 @@ final class PatientRegistration {
             try {
                 long userId;
                 try (PreparedStatement ps = db.prepareStatement(
-                        "SELECT id_user FROM users WHERE email = ? AND role = 'pasien' "
+                        "SELECT id_user FROM users WHERE email = ? AND role IN ('pasien','dokter','farmasi') "
                                 + "AND account_status = 'PENDING' AND is_active = 0 FOR UPDATE")) {
                     ps.setString(1, email);
                     try (ResultSet rs = ps.executeQuery()) {
@@ -186,7 +176,6 @@ final class PatientRegistration {
                 if (!MessageDigest.isEqual(hash.getBytes(StandardCharsets.US_ASCII),
                         hashOtp(kode, secret).getBytes(StandardCharsets.US_ASCII))) {
                     db.commit();
-                    WebSite.selaraskanSesi();
                     return gagal(400, "Kode OTP tidak cocok.");
                 }
                 try (PreparedStatement ps = db.prepareStatement(
@@ -196,12 +185,11 @@ final class PatientRegistration {
                 }
                 try (PreparedStatement ps = db.prepareStatement(
                         "UPDATE users SET wa_terverifikasi_pada = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() "
-                                + "WHERE id_user = ? AND role = 'pasien' AND account_status = 'PENDING'")) {
+                                + "WHERE id_user = ? AND role IN ('pasien','dokter','farmasi') AND account_status = 'PENDING'")) {
                     ps.setLong(1, userId);
                     ps.executeUpdate();
                 }
                 db.commit();
-                WebSite.selaraskanSesi();
                 return baik(200, "Nomor WhatsApp terverifikasi. Lengkapi profil pasien.");
             } catch (SQLException error) {
                 db.rollback();
@@ -216,21 +204,21 @@ final class PatientRegistration {
     }
 
     static Result lengkapiProfil(Map<String, Object> request) {
-        synchronized (VisitStore.GERBANG) {
-            return simpanProfil(request);
-        }
-    }
-
-    private static Result simpanProfil(Map<String, Object> request) {
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
         String nik = teks(request.get("nik")).trim();
         String tanggal = teks(request.get("tanggal_lahir")).trim();
         String jk = teks(request.get("jenis_kelamin")).trim();
         String bpjs = teks(request.get("nomor_bpjs")).trim();
         String alamat = teks(request.get("alamat")).trim();
-        if (!emailAman(email) || !nik.matches("^[0-9]{16}$") || !tanggalValid(tanggal)
-                || !("L".equals(jk) || "P".equals(jk)) || bpjs.length() > 20 || alamat.length() > 2000) {
-            return gagal(422, "NIK, tanggal lahir, atau data profil tidak valid.");
+        String nomorSatusehat = teks(request.get("nomor_satusehat")).trim();
+        boolean persetujuanPrivasi = Boolean.TRUE.equals(request.get("persetujuan_privasi"))
+                || "true".equalsIgnoreCase(teks(request.get("persetujuan_privasi")));
+        String licenseNumber = teks(request.get("license_number")).trim();
+        String specialization = teks(request.get("specialization")).trim();
+        long poliId = angka(request.get("id_poli"));
+        if (!emailAman(email) || !bpjs.matches("^[0-9]{0,20}$") || nomorSatusehat.length() > 50
+                || alamat.length() > 2000) {
+            return gagal(422, "Email atau data profil tidak valid.");
         }
 
         try (Connection db = Database.open()) {
@@ -239,8 +227,10 @@ final class PatientRegistration {
                 long userId;
                 String nama;
                 String wa;
+                String role;
                 try (PreparedStatement ps = db.prepareStatement(
-                        "SELECT id_user, nama_lengkap, no_telepon FROM users WHERE email = ? AND role = 'pasien' "
+                        "SELECT id_user, nama_lengkap, no_telepon, role FROM users WHERE email = ? "
+                                + "AND role IN ('pasien','dokter','farmasi') "
                                 + "AND account_status = 'PENDING' AND is_active = 0 "
                                 + "AND wa_terverifikasi_pada IS NOT NULL FOR UPDATE")) {
                     ps.setString(1, email);
@@ -252,7 +242,58 @@ final class PatientRegistration {
                         userId = rs.getLong("id_user");
                         nama = rs.getString("nama_lengkap");
                         wa = rs.getString("no_telepon");
+                        role = rs.getString("role");
                     }
+                }
+                if ("dokter".equals(role) || "farmasi".equals(role)) {
+                    String jenisIzin = "dokter".equals(role) ? "SIP" : "SIPA";
+                    if (!licenseNumber.matches("^[A-Za-z0-9./-]{4,50}$")
+                            || ("dokter".equals(role) && (specialization.isBlank() || specialization.length() > 100
+                            || poliId <= 0 || !ada(db,
+                                    "SELECT 1 FROM poliklinik WHERE id_poli = ? AND is_active = 1 LIMIT 1",
+                                    Long.toString(poliId))))
+                            || ("farmasi".equals(role) && !specialization.isBlank())) {
+                        db.rollback();
+                        return gagal(422, "Nomor " + jenisIzin + " atau data staf tidak valid.");
+                    }
+                    long requestId;
+                    try (PreparedStatement ps = db.prepareStatement(
+                            "INSERT INTO staff_registration_requests "
+                                    + "(id_user, license_number, specialization, id_poli, status) "
+                                    + "VALUES (?, ?, ?, ?, 'PENDING')",
+                            Statement.RETURN_GENERATED_KEYS)) {
+                        ps.setLong(1, userId);
+                        ps.setString(2, licenseNumber);
+                        ps.setString(3, specialization.isBlank() ? null : specialization);
+                        if ("dokter".equals(role)) {
+                            ps.setLong(4, poliId);
+                        } else {
+                            ps.setNull(4, java.sql.Types.BIGINT);
+                        }
+                        ps.executeUpdate();
+                        try (ResultSet keys = ps.getGeneratedKeys()) {
+                            if (!keys.next()) {
+                                throw new SQLException("ID permohonan staf tidak terbentuk.");
+                            }
+                            requestId = keys.getLong(1);
+                        }
+                    }
+                    try (PreparedStatement ps = db.prepareStatement(
+                            "INSERT INTO log_aktivitas (id_user, aktivitas, tabel_referensi, id_referensi, keterangan) "
+                                    + "VALUES (?, 'REGISTER_STAFF_REQUEST', 'staff_registration_requests', ?, ?)")) {
+                        ps.setLong(1, userId);
+                        ps.setLong(2, requestId);
+                        ps.setString(3, "Permohonan akun " + role + " menunggu persetujuan admin");
+                        ps.executeUpdate();
+                    }
+                    db.commit();
+                    return baik(202, "Permohonan akun staf terkirim. Akun menunggu pemeriksaan dan persetujuan admin.");
+                }
+                if (!nik.matches("^[0-9]{16}$") || !tanggalValid(tanggal)
+                        || !("L".equals(jk) || "P".equals(jk)) || alamat.isBlank()
+                        || !persetujuanPrivasi) {
+                    db.rollback();
+                    return gagal(422, "NIK, tanggal lahir, jenis kelamin, alamat, dan persetujuan kebijakan privasi wajib diisi.");
                 }
                 if (ada(db, "SELECT 1 FROM pasien WHERE nik = ? LIMIT 1", nik)) {
                     db.rollback();
@@ -261,8 +302,10 @@ final class PatientRegistration {
                 long pasienId;
                 try (PreparedStatement ps = db.prepareStatement(
                         "INSERT INTO pasien (id_user, no_rekam_medis, nik, nomor_bpjs, nama_lengkap, tanggal_lahir, "
-                                + "jenis_kelamin, alamat, no_telepon, terdaftar_satusehat) "
-                                + "VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 0)", Statement.RETURN_GENERATED_KEYS)) {
+                                + "jenis_kelamin, alamat, no_telepon, no_satusehat, privacy_consent_at, "
+                                + "privacy_policy_version, terdaftar_satusehat) "
+                                + "VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?, 0)",
+                        Statement.RETURN_GENERATED_KEYS)) {
                     ps.setLong(1, userId);
                     ps.setString(2, nik);
                     ps.setString(3, bpjs.isBlank() ? null : bpjs);
@@ -271,6 +314,8 @@ final class PatientRegistration {
                     ps.setString(6, jk);
                     ps.setString(7, alamat.isBlank() ? null : alamat);
                     ps.setString(8, wa);
+                    ps.setString(9, nomorSatusehat.isBlank() ? null : nomorSatusehat);
+                    ps.setString(10, PRIVACY_POLICY_VERSION);
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) {
@@ -303,7 +348,6 @@ final class PatientRegistration {
                     ps.executeUpdate();
                 }
                 db.commit();
-                WebSite.selaraskanSesi();
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("id_pasien", pasienId);
                 data.put("no_rekam_medis", nomorRekamMedis);
@@ -321,6 +365,126 @@ final class PatientRegistration {
         } catch (SQLException error) {
             System.err.println("[mediflow] Profil pasien gagal disimpan: " + ColumnValues.pesan(error));
             return gagal(503, "Profil pasien tidak dapat disimpan. Periksa database lalu coba kembali.");
+        }
+    }
+
+    static List<Map<String, Object>> stafMenunggu() throws SQLException {
+        List<Map<String, Object>> result = new ArrayList<>();
+        try (Connection db = Database.open();
+             PreparedStatement ps = db.prepareStatement(
+                     "SELECT r.id_request, r.id_user, u.nama_lengkap, u.email, u.no_telepon, u.role, "
+                          + "r.license_number, r.specialization, r.id_poli, p.nama_poli, r.created_at "
+                             + "FROM staff_registration_requests r JOIN users u ON u.id_user = r.id_user "
+                          + "LEFT JOIN poliklinik p ON p.id_poli = r.id_poli "
+                             + "WHERE r.status = 'PENDING' AND u.account_status = 'PENDING' "
+                             + "ORDER BY r.created_at, r.id_request");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id_request", rs.getLong("id_request"));
+                row.put("id_user", rs.getLong("id_user"));
+                row.put("nama_lengkap", rs.getString("nama_lengkap"));
+                row.put("email", rs.getString("email"));
+                row.put("no_telepon", rs.getString("no_telepon"));
+                row.put("role", rs.getString("role"));
+                row.put("license_number", rs.getString("license_number"));
+                row.put("specialization", rs.getString("specialization"));
+                row.put("id_poli", rs.getObject("id_poli"));
+                row.put("nama_poli", rs.getString("nama_poli"));
+                row.put("created_at", rs.getString("created_at"));
+                result.add(row);
+            }
+        }
+        return result;
+    }
+
+    static Result tinjauStaf(long requestId, long adminId, boolean setuju) {
+        if (requestId <= 0 || adminId <= 0) {
+            return gagal(422, "Permohonan atau akun admin tidak valid.");
+        }
+        try (Connection db = Database.open()) {
+            db.setAutoCommit(false);
+            try {
+                long userId;
+                String role;
+                String nama;
+                String specialization;
+                long poliTersimpan;
+                try (PreparedStatement ps = db.prepareStatement(
+                        "SELECT r.id_user, u.role, u.nama_lengkap, r.specialization, r.id_poli "
+                                + "FROM staff_registration_requests r JOIN users u ON u.id_user = r.id_user "
+                                + "WHERE r.id_request = ? AND r.status = 'PENDING' "
+                                + "AND u.account_status = 'PENDING' FOR UPDATE")) {
+                    ps.setLong(1, requestId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            db.rollback();
+                            return gagal(404, "Permohonan staf tidak ditemukan atau sudah ditinjau.");
+                        }
+                        userId = rs.getLong("id_user");
+                        role = rs.getString("role");
+                        nama = rs.getString("nama_lengkap");
+                        specialization = rs.getString("specialization");
+                        poliTersimpan = rs.getLong("id_poli");
+                    }
+                }
+                if (setuju && "dokter".equals(role)) {
+                    if (poliTersimpan <= 0 || !ada(db, "SELECT 1 FROM poliklinik WHERE id_poli = ? AND is_active = 1", Long.toString(poliTersimpan))) {
+                        db.rollback();
+                        return gagal(422, "Poli permohonan dokter tidak tersedia atau tidak aktif.");
+                    }
+                    try (PreparedStatement ps = db.prepareStatement(
+                            "INSERT INTO dokter (id_user, id_poli, nama_dokter, spesialisasi, is_active) "
+                                    + "VALUES (?, ?, ?, ?, 1)")) {
+                        ps.setLong(1, userId);
+                        ps.setLong(2, poliTersimpan);
+                        ps.setString(3, nama);
+                        ps.setString(4, specialization);
+                        ps.executeUpdate();
+                    }
+                }
+                String statusPermohonan = setuju ? "APPROVED" : "REJECTED";
+                String statusAkun = setuju ? "ACTIVE" : "SUSPENDED";
+                try (PreparedStatement ps = db.prepareStatement(
+                        "UPDATE users SET account_status = ?, is_active = ?, updated_at = UTC_TIMESTAMP() "
+                                + "WHERE id_user = ? AND account_status = 'PENDING'")) {
+                    ps.setString(1, statusAkun);
+                    ps.setInt(2, setuju ? 1 : 0);
+                    ps.setLong(3, userId);
+                    if (ps.executeUpdate() != 1) {
+                        throw new SQLException("Akun staf tidak berada dalam status menunggu.");
+                    }
+                }
+                try (PreparedStatement ps = db.prepareStatement(
+                        "UPDATE staff_registration_requests SET status = ?, reviewed_by = ?, reviewed_at = UTC_TIMESTAMP() "
+                                + "WHERE id_request = ? AND status = 'PENDING'")) {
+                    ps.setString(1, statusPermohonan);
+                    ps.setLong(2, adminId);
+                    ps.setLong(3, requestId);
+                    if (ps.executeUpdate() != 1) {
+                        throw new SQLException("Permohonan staf tidak dapat diperbarui.");
+                    }
+                }
+                try (PreparedStatement ps = db.prepareStatement(
+                        "INSERT INTO log_aktivitas (id_user, aktivitas, tabel_referensi, id_referensi, keterangan) "
+                                + "VALUES (?, ?, 'users', ?, ?)")) {
+                    ps.setLong(1, adminId);
+                    ps.setString(2, setuju ? "APPROVE_STAFF_REGISTRATION" : "REJECT_STAFF_REGISTRATION");
+                    ps.setLong(3, userId);
+                    ps.setString(4, (setuju ? "Admin menyetujui " : "Admin menolak ") + role + " " + nama);
+                    ps.executeUpdate();
+                }
+                db.commit();
+                return baik(200, setuju ? "Pendaftaran staf disetujui." : "Pendaftaran staf ditolak.");
+            } catch (SQLException error) {
+                db.rollback();
+                throw error;
+            } finally {
+                db.setAutoCommit(true);
+            }
+        } catch (SQLException error) {
+            System.err.println("[mediflow] Persetujuan staf gagal: " + ColumnValues.pesan(error));
+            return gagal(503, "Permohonan staf tidak dapat diproses.");
         }
     }
 
@@ -359,6 +523,17 @@ final class PatientRegistration {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
+        }
+    }
+
+    private static long angka(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value).trim());
+        } catch (NumberFormatException error) {
+            return 0;
         }
     }
 

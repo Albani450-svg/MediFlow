@@ -230,6 +230,9 @@ final class Pasien implements Baris {
     String jenis_kelamin;
     String alamat;
     String no_telepon;
+    String no_satusehat;
+    String privacy_consent_at;
+    String privacy_policy_version;
     boolean terdaftar_satusehat;
     String created_at;
     String updated_at;
@@ -246,6 +249,9 @@ final class Pasien implements Baris {
         item.jenis_kelamin = DatabaseRecords.str(baris.get("jenis_kelamin"));
         item.alamat = DatabaseRecords.str(baris.get("alamat"));
         item.no_telepon = DatabaseRecords.str(baris.get("no_telepon"));
+        item.no_satusehat = DatabaseRecords.str(baris.get("no_satusehat"));
+        item.privacy_consent_at = DatabaseRecords.str(baris.get("privacy_consent_at"));
+        item.privacy_policy_version = DatabaseRecords.str(baris.get("privacy_policy_version"));
         item.terdaftar_satusehat = DatabaseRecords.bool(baris.get("terdaftar_satusehat"));
         item.created_at = DatabaseRecords.str(baris.get("created_at"));
         item.updated_at = DatabaseRecords.str(baris.get("updated_at"));
@@ -265,6 +271,9 @@ final class Pasien implements Baris {
         baris.put("jenis_kelamin", jenis_kelamin);
         baris.put("alamat", alamat);
         baris.put("no_telepon", no_telepon);
+        baris.put("no_satusehat", no_satusehat);
+        baris.put("privacy_consent_at", privacy_consent_at);
+        baris.put("privacy_policy_version", privacy_policy_version);
         baris.put("terdaftar_satusehat", terdaftar_satusehat);
         baris.put("created_at", created_at);
         baris.put("updated_at", updated_at);
