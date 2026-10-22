@@ -1,6 +1,7 @@
 package mediflow;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -20,6 +21,14 @@ public final class VisitFlowCheck {
         String hashKuat = PasswordHash.hashPasswordLambat("kata-sandi-registrasi");
         benar(PasswordHash.verifikasiPassword("kata-sandi-registrasi", hashKuat));
         benar(!PasswordHash.verifikasiPassword("kata-sandi-salah", hashKuat));
+        PatientRegistration.Result roleAdmin = PatientRegistration.daftar(Map.of(
+                "nama_lengkap", "Uji",
+                "email", "uji@example.org",
+                "no_telepon", "081234567890",
+                "password", "kata-sandi-uji-aman",
+                "role", "ADMIN"
+        ), "127.0.0.1");
+        sama(roleAdmin.status(), 422);
 
         sama(VisitRules.estimasiJamMasuk("2026-10-06", "08:00", 5, 15), "2026-10-06T02:00:00.000Z");
         sama(VisitRules.estimasiFarmasiMenit(2, List.of("Jadi", "Racikan")), 40);
