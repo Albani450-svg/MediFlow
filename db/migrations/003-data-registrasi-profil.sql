@@ -1,4 +1,4 @@
--- Migrasi 003. Data profil registrasi untuk medicflow_db yang sudah ada.
+-- Migrasi 003. Hanya untuk skema lama sebelum dump 22 Oktober 2026. Jangan dijalankan pada db/schema.sql sekarang.
 -- Jalankan sesudah 001 dan 002. Butuh tabel pasien, poliklinik, dan staff_registration_requests.
 -- Aman dijalankan ulang pada MariaDB 10.4 (XAMPP proyek ini).
 -- no_satusehat, privacy_consent_at, dan privacy_policy_version belum ditulis aplikasi.

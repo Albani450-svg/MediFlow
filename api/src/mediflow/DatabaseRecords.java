@@ -1,6 +1,7 @@
 package mediflow;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,14 +26,8 @@ final class DatabaseRecords {
 
     static DatabaseRecords dari(Map<String, List<Map<String, Object>>> data) {
         DatabaseRecords basis = new DatabaseRecords();
-        for (Map<String, Object> baris : daftar(data, "users")) {
-            basis.users.add(Pengguna.dari(baris));
-        }
-        for (Map<String, Object> baris : daftar(data, "pasien")) {
-            basis.pasien.add(Pasien.dari(baris));
-        }
         for (Map<String, Object> baris : daftar(data, "dokter")) {
-            basis.dokter.add(Dokter.dari(baris));
+            basis.dokter.add(Dokter.dari(samakanAkun(baris, "account_id")));
         }
         for (Map<String, Object> baris : daftar(data, "poliklinik")) {
             basis.poliklinik.add(Poli.dari(baris));
@@ -59,38 +54,249 @@ final class DatabaseRecords {
             basis.notifikasi.add(Kabar.dari(baris));
         }
         for (Map<String, Object> baris : daftar(data, "otp_verifikasi")) {
-            basis.otp_verifikasi.add(Otp.dari(baris));
+            basis.otp_verifikasi.add(Otp.dari(samakanAkun(baris, "account_id")));
         }
         for (Map<String, Object> baris : daftar(data, "pengambilan_obat")) {
-            basis.pengambilan_obat.add(Ambil.dari(baris));
+            basis.pengambilan_obat.add(Ambil.dari(samakanAkun(baris, "account_petugas", "id_user_petugas")));
         }
         for (Map<String, Object> baris : daftar(data, "mutasi_stok")) {
-            basis.mutasi_stok.add(Mutasi.dari(baris));
+            basis.mutasi_stok.add(Mutasi.dari(samakanAkun(baris, "account_user")));
         }
         for (Map<String, Object> baris : daftar(data, "log_aktivitas")) {
-            basis.log_aktivitas.add(Jejak.dari(baris));
+            basis.log_aktivitas.add(Jejak.dari(samakanAkun(baris, "account_id")));
+        }
+        susunIdentitas(basis, daftar(data, "accounts"), daftar(data, "admins"), daftar(data, "farmasi_staff"), daftar(data, "patients"));
+        if (basis.users.isEmpty()) {
+            for (Map<String, Object> baris : daftar(data, "users")) {
+                basis.users.add(Pengguna.dari(baris));
+            }
+            for (Map<String, Object> baris : daftar(data, "pasien")) {
+                basis.pasien.add(Pasien.dari(baris));
+            }
         }
         return basis;
     }
 
     Map<String, Object> kePeta() {
         Map<String, Object> hasil = new LinkedHashMap<>();
-        hasil.put("users", peta(users));
+        hasil.put("accounts", petaAkun());
+        hasil.put("admins", petaAdmin());
+        hasil.put("farmasi_staff", petaFarmasi());
         hasil.put("poliklinik", peta(poliklinik));
         hasil.put("obat", peta(obat));
-        hasil.put("pasien", peta(pasien));
-        hasil.put("dokter", peta(dokter));
+        hasil.put("patients", petaPasien());
+        hasil.put("dokter", petaDenganAkun(dokter, "id_user", "account_id"));
         hasil.put("jadwal_dokter", peta(jadwal_dokter));
         hasil.put("pendaftaran_poli", peta(pendaftaran_poli));
         hasil.put("pemeriksaan", peta(pemeriksaan));
         hasil.put("resep", peta(resep));
         hasil.put("detail_resep", peta(detail_resep));
         hasil.put("notifikasi", peta(notifikasi));
-        hasil.put("otp_verifikasi", peta(otp_verifikasi));
-        hasil.put("pengambilan_obat", peta(pengambilan_obat));
-        hasil.put("mutasi_stok", peta(mutasi_stok));
-        hasil.put("log_aktivitas", peta(log_aktivitas));
+        hasil.put("otp_verifikasi", petaDenganAkun(otp_verifikasi, "id_user", "account_id"));
+        hasil.put("pengambilan_obat", petaDenganAkun(pengambilan_obat, "id_user_petugas", "account_petugas"));
+        hasil.put("mutasi_stok", petaDenganAkun(mutasi_stok, "id_user", "account_user"));
+        hasil.put("log_aktivitas", petaDenganAkun(log_aktivitas, "id_user", "account_id"));
         return hasil;
+    }
+
+    private List<Map<String, Object>> petaAkun() {
+        List<Map<String, Object>> hasil = new ArrayList<>();
+        for (Pengguna user : users) {
+            Map<String, Object> baris = baris();
+            baris.put("account_id", user.id_user);
+            baris.put("username", user.username);
+            baris.put("email", kosong(user.email) ? null : user.email);
+            baris.put("password_hash", user.password_hash);
+            baris.put("is_active", user.is_active && !"PENDING".equals(user.account_status) && !"SUSPENDED".equals(user.account_status));
+            baris.put("created_at", user.created_at);
+            baris.put("updated_at", user.updated_at);
+            hasil.add(baris);
+        }
+        return hasil;
+    }
+
+    private List<Map<String, Object>> petaAdmin() {
+        List<Map<String, Object>> hasil = new ArrayList<>();
+        for (Pengguna user : users) {
+            if (!"admin".equals(user.role)) {
+                continue;
+            }
+            Map<String, Object> baris = baris();
+            baris.put("id_admin", user.id_profil > 0 ? user.id_profil : user.id_user);
+            baris.put("account_id", user.id_user);
+            baris.put("nama", user.nama_lengkap);
+            baris.put("phone", kosong(user.no_telepon) ? null : user.no_telepon);
+            baris.put("is_super", user.is_super || (user.id_profil == 0 && "admin".equalsIgnoreCase(user.username)));
+            baris.put("created_at", user.created_at);
+            baris.put("updated_at", user.updated_at);
+            hasil.add(baris);
+        }
+        return hasil;
+    }
+
+    private List<Map<String, Object>> petaFarmasi() {
+        List<Map<String, Object>> hasil = new ArrayList<>();
+        for (Pengguna user : users) {
+            if (!"farmasi".equals(user.role)) {
+                continue;
+            }
+            Map<String, Object> baris = baris();
+            baris.put("id_farmasi", user.id_profil > 0 ? user.id_profil : user.id_user);
+            baris.put("account_id", user.id_user);
+            baris.put("nama", user.nama_lengkap);
+            baris.put("phone", kosong(user.no_telepon) ? null : user.no_telepon);
+            baris.put("created_at", user.created_at);
+            baris.put("updated_at", user.updated_at);
+            hasil.add(baris);
+        }
+        return hasil;
+    }
+
+    private List<Map<String, Object>> petaPasien() {
+        List<Map<String, Object>> hasil = new ArrayList<>();
+        for (Pasien item : pasien) {
+            Map<String, Object> baris = item.peta();
+            baris.put("account_id", item.id_user);
+            baris.remove("id_user");
+            baris.remove("nomor_bpjs");
+            baris.remove("no_satusehat");
+            baris.remove("privacy_consent_at");
+            baris.remove("privacy_policy_version");
+            hasil.add(baris);
+        }
+        return hasil;
+    }
+
+    private static List<Map<String, Object>> petaDenganAkun(List<? extends Baris> baris, String lama, String baru) {
+        List<Map<String, Object>> hasil = new ArrayList<>();
+        for (Baris item : baris) {
+            Map<String, Object> peta = item.peta();
+            if (peta.containsKey(lama)) {
+                peta.put(baru, peta.remove(lama));
+            }
+            hasil.add(peta);
+        }
+        return hasil;
+    }
+
+    private static void susunIdentitas(
+            DatabaseRecords basis,
+            List<Map<String, Object>> accounts,
+            List<Map<String, Object>> admins,
+            List<Map<String, Object>> farmasi,
+            List<Map<String, Object>> patients
+    ) {
+        if (accounts.isEmpty() && admins.isEmpty() && patients.isEmpty()) {
+            return;
+        }
+        Map<Long, Map<String, Object>> adminBy = indeks(admins, "account_id");
+        Map<Long, Map<String, Object>> farmasiBy = indeks(farmasi, "account_id");
+        Map<Long, Dokter> dokterBy = new HashMap<>();
+        for (Dokter item : basis.dokter) {
+            dokterBy.put(item.id_user, item);
+        }
+        for (Map<String, Object> baris : patients) {
+            basis.pasien.add(Pasien.dari(samakanAkun(baris, "account_id")));
+        }
+        Map<Long, Pasien> pasienBy = new HashMap<>();
+        for (Pasien item : basis.pasien) {
+            pasienBy.put(item.id_user, item);
+        }
+        for (Map<String, Object> akun : accounts) {
+            long id = lng(akun.get("account_id"));
+            boolean aktif = bool(akun.get("is_active"));
+            Pengguna user = new Pengguna();
+            user.id_user = id;
+            user.username = str(akun.get("username"));
+            user.email = str(akun.get("email"));
+            user.password_hash = str(akun.get("password_hash"));
+            user.is_active = aktif;
+            user.account_status = aktif ? "ACTIVE" : "PENDING";
+            user.created_at = str(akun.get("created_at"));
+            user.updated_at = str(akun.get("updated_at"));
+            Map<String, Object> admin = adminBy.get(id);
+            Dokter dokter = dokterBy.get(id);
+            Map<String, Object> petugas = farmasiBy.get(id);
+            Pasien pasien = pasienBy.get(id);
+            if (admin != null) {
+                user.role = "admin";
+                user.nama_lengkap = str(admin.get("nama"));
+                user.no_telepon = str(admin.get("phone"));
+                user.id_profil = lng(admin.get("id_admin"));
+                user.is_super = bool(admin.get("is_super"));
+            } else if (dokter != null) {
+                user.role = "dokter";
+                user.nama_lengkap = dokter.nama_dokter;
+                if (!aktif || !dokter.is_active) {
+                    user.is_active = false;
+                    user.account_status = "PENDING";
+                }
+            } else if (petugas != null) {
+                user.role = "farmasi";
+                user.nama_lengkap = str(petugas.get("nama"));
+                user.no_telepon = str(petugas.get("phone"));
+                user.id_profil = lng(petugas.get("id_farmasi"));
+            } else if (pasien != null) {
+                user.role = "pasien";
+                user.nama_lengkap = pasien.nama_lengkap;
+                user.no_telepon = pasien.no_telepon;
+            } else {
+                String[] pending = pendingTerbaru(basis.log_aktivitas, id);
+                user.role = pending == null ? "" : pending[0];
+                user.nama_lengkap = pending == null ? user.username : pending[1];
+                user.no_telepon = pending == null ? null : pending[2];
+                if (!aktif) {
+                    user.account_status = "PENDING";
+                }
+            }
+            basis.users.add(user);
+        }
+    }
+
+    private static Map<Long, Map<String, Object>> indeks(List<Map<String, Object>> baris, String kunci) {
+        Map<Long, Map<String, Object>> hasil = new HashMap<>();
+        for (Map<String, Object> item : baris) {
+            hasil.put(lng(item.get(kunci)), item);
+        }
+        return hasil;
+    }
+
+    private static String[] pendingTerbaru(List<Jejak> log, long accountId) {
+        Jejak pilih = null;
+        for (Jejak item : log) {
+            if (item.id_user != null && item.id_user == accountId && "REGISTER_PENDING".equals(item.aktivitas)
+                    && (pilih == null || item.id_log > pilih.id_log)) {
+                pilih = item;
+            }
+        }
+        if (pilih == null || pilih.keterangan == null) {
+            return null;
+        }
+        String[] bagian = pilih.keterangan.split("\n", -1);
+        if (bagian.length < 3) {
+            return null;
+        }
+        if (!("pasien".equals(bagian[0]) || "dokter".equals(bagian[0]) || "farmasi".equals(bagian[0]))) {
+            return null;
+        }
+        return new String[] {bagian[0], bagian[1], bagian[2]};
+    }
+
+    private static Map<String, Object> samakanAkun(Map<String, Object> baris, String sumber) {
+        return samakanAkun(baris, sumber, "id_user");
+    }
+
+    private static Map<String, Object> samakanAkun(Map<String, Object> baris, String sumber, String tujuan) {
+        if (baris.containsKey(tujuan) || !baris.containsKey(sumber)) {
+            return baris;
+        }
+        Map<String, Object> salinan = new LinkedHashMap<>(baris);
+        salinan.put(tujuan, salinan.get(sumber));
+        return salinan;
+    }
+
+    private static boolean kosong(String nilai) {
+        return nilai == null || nilai.isBlank();
     }
 
     private static List<Map<String, Object>> peta(List<? extends Baris> baris) {
@@ -179,6 +385,8 @@ final class Pengguna implements Baris {
     boolean is_active;
     String account_status = "ACTIVE";
     String wa_terverifikasi_pada;
+    long id_profil;
+    boolean is_super;
     String created_at;
     String updated_at;
 

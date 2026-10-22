@@ -1,5 +1,6 @@
--- Migrasi 001. Registrasi pasien untuk medicflow_db yang sudah ada.
--- Menyamakan users, pasien, otp_verifikasi, dan auth_rate_limits dengan bentuk akhir db/schema.sql.
+-- Migrasi 001. Hanya untuk skema lama (tabel users dan pasien) sebelum dump 22 Oktober 2026.
+-- Jangan dijalankan pada db/schema.sql yang sekarang. Skema itu memakai accounts, patients, admins, dan farmasi_staff.
+-- Menyamakan users, pasien, otp_verifikasi, dan auth_rate_limits dengan bentuk lama.
 -- Akun lama menerima account_status ACTIVE. Email kosong dijadikan NULL sebelum indeks unik dipasang.
 -- Aman dijalankan ulang pada MariaDB 10.4 (XAMPP proyek ini).
 --

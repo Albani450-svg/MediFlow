@@ -1,5 +1,5 @@
--- Migrasi 002. Pengajuan registrasi staf untuk medicflow_db yang sudah ada.
--- Jalankan sesudah 001. Butuh tabel users.
+-- Migrasi 002. Hanya untuk skema lama sebelum dump 22 Oktober 2026. Jangan dijalankan pada db/schema.sql sekarang.
+-- Jalankan sesudah 001. Butuh tabel users. Dump baru tidak punya staff_registration_requests.
 -- Satu pengguna hanya punya satu pengajuan. Nomor izin tidak boleh dipakai pengajuan lain.
 -- Aman dijalankan ulang pada MariaDB 10.4 (XAMPP proyek ini).
 -- Aplikasi Java belum membaca tabel ini, jadi penyimpanan layar tidak menghapus barisnya.

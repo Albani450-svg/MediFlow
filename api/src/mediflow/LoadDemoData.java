@@ -11,7 +11,7 @@ public final class LoadDemoData {
         try (Connection db = Database.open()) {
             DatabaseSnapshot.simpan(db, basis.kePeta());
         }
-        System.out.println("[mediflow] Data uji tersimpan. pengguna=" + basis.users.size()
+        System.out.println("[mediflow] Data uji tersimpan. akun=" + basis.users.size()
                 + " antrean=" + basis.pendaftaran_poli.size()
                 + " obat=" + basis.obat.size());
     }

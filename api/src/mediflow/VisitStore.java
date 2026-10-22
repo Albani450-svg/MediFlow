@@ -163,6 +163,7 @@ final class VisitStore {
             DatabaseRecords baru = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
             ganti(basis.users, baru.users);
             ganti(basis.pasien, baru.pasien);
+            ganti(basis.dokter, baru.dokter);
             ganti(basis.otp_verifikasi, baru.otp_verifikasi);
             ganti(basis.log_aktivitas, baru.log_aktivitas);
         } catch (Exception error) {
@@ -174,8 +175,35 @@ final class VisitStore {
         DatabaseRecords baru = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
         tambahYangBelum(basis.users, baru.users, item -> item.id_user);
         tambahYangBelum(basis.pasien, baru.pasien, item -> item.id_pasien);
+        tambahYangBelum(basis.dokter, baru.dokter, item -> item.id_dokter);
         tambahYangBelum(basis.otp_verifikasi, baru.otp_verifikasi, item -> item.id_otp);
         tambahYangBelum(basis.log_aktivitas, baru.log_aktivitas, item -> item.id_log);
+        for (Pengguna dbUser : baru.users) {
+            for (Pengguna lokal : basis.users) {
+                if (lokal.id_user == dbUser.id_user && dbUser.is_active && !lokal.is_active) {
+                    lokal.is_active = true;
+                    lokal.account_status = dbUser.account_status;
+                    lokal.role = dbUser.role;
+                    lokal.nama_lengkap = dbUser.nama_lengkap;
+                    lokal.no_telepon = dbUser.no_telepon;
+                    lokal.email = dbUser.email;
+                    lokal.password_hash = dbUser.password_hash;
+                    lokal.id_profil = dbUser.id_profil;
+                    lokal.is_super = dbUser.is_super;
+                }
+            }
+        }
+        for (Dokter dbDokter : baru.dokter) {
+            for (Dokter lokal : basis.dokter) {
+                if (lokal.id_dokter == dbDokter.id_dokter && dbDokter.is_active && !lokal.is_active) {
+                    lokal.is_active = true;
+                    lokal.id_user = dbDokter.id_user;
+                    lokal.id_poli = dbDokter.id_poli;
+                    lokal.nama_dokter = dbDokter.nama_dokter;
+                    lokal.spesialisasi = dbDokter.spesialisasi;
+                }
+            }
+        }
     }
 
     private static <T> void ganti(List<T> tujuan, List<T> sumber) {
@@ -289,7 +317,7 @@ final class VisitStore {
         user.updated_at = VisitRules.sekarangIso();
         idUser = user.id_user;
         role = user.role;
-        catat(user.id_user, "LOGIN", "users", user.id_user, "Masuk sebagai " + user.role);
+        catat(user.id_user, "LOGIN", "accounts", user.id_user, "Masuk sebagai " + user.role);
         emit();
         return baik(null);
     }
@@ -297,7 +325,7 @@ final class VisitStore {
     void logout() {
         Pengguna user = aktor();
         if (user != null) {
-            catat(user.id_user, "LOGOUT", "users", user.id_user, "Keluar dari sesi");
+            catat(user.id_user, "LOGOUT", "accounts", user.id_user, "Keluar dari sesi");
         }
         idUser = null;
         role = null;

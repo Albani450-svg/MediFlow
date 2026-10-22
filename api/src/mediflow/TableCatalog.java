@@ -49,7 +49,9 @@ final class TableCatalog {
 
     static {
         List<Table> daftar = List.of(
-                pengguna(),
+                akun(),
+                admin(),
+                farmasi(),
                 poliklinik(),
                 obat(),
                 pasien(),
@@ -75,21 +77,49 @@ final class TableCatalog {
 
     private TableCatalog() {}
 
-    private static Table pengguna() {
-        return bangun("users", "pengguna", "id_user", stempel(
-                i("id_user"), s("username"), sz("email"), s("password_hash"), s("role"), s("nama_lengkap"),
-                sz("no_telepon"), b("is_active"), s("account_status"), tz("wa_terverifikasi_pada")
-        ), List.of("username", "password_hash", "role", "nama_lengkap", "no_telepon", "is_active"),
-                List.of("username", "password_hash", "role", "nama_lengkap"),
+    private static Table akun() {
+        return bangun("accounts", "akun", "account_id", stempel(
+                i("account_id"), s("username"), sz("email"), s("password_hash"), b("is_active")
+        ), List.of("username", "email", "password_hash", "is_active"),
+                List.of("username", "password_hash"),
                 Set.of(),
-                List.of("role", "is_active", "username"),
+                List.of("is_active", "username"),
                 List.of(
-                        field("username", "required|min_length[3]|max_length[50]|is_unique[users.username,id_user,{id_user}]", "is_unique", "Nama pengguna sudah terdaftar."),
+                        field("username", "required|min_length[3]|max_length[50]|is_unique[accounts.username,account_id,{account_id}]", "is_unique", "Nama pengguna sudah terdaftar."),
+                        field("email", "permit_empty|max_length[100]|is_unique[accounts.email,account_id,{account_id}]", "is_unique", "Email sudah terdaftar."),
                         field("password_hash", "required|max_length[255]"),
-                        field("role", "required|in_list[admin,pasien,dokter,farmasi]"),
-                        field("nama_lengkap", "required|max_length[100]"),
-                        field("no_telepon", "permit_empty|max_length[20]|regex_match[/^08[0-9]{8,12}$/]", "regex_match", "Nomor telepon harus diawali 08."),
                         field("is_active", "if_exist|in_list[0,1]")
+                ), null);
+    }
+
+    private static Table admin() {
+        return bangun("admins", "admin", "id_admin", stempel(
+                i("id_admin"), i("account_id"), s("nama"), sz("phone"), b("is_super")
+        ), List.of("account_id", "nama", "phone", "is_super"),
+                List.of("account_id", "nama"),
+                Set.of(),
+                List.of("account_id", "is_super"),
+                List.of(
+                        field("account_id", "required|is_natural_no_zero|is_not_unique[accounts.account_id]|is_unique[admins.account_id,id_admin,{id_admin}]",
+                                "is_not_unique", "Akun tidak ditemukan.", "is_unique", "Akun ini sudah terhubung ke admin lain."),
+                        field("nama", "required|max_length[150]"),
+                        field("phone", "permit_empty|max_length[20]|regex_match[/^08[0-9]{8,12}$/]", "regex_match", "Nomor telepon harus diawali 08."),
+                        field("is_super", "if_exist|in_list[0,1]")
+                ), null);
+    }
+
+    private static Table farmasi() {
+        return bangun("farmasi_staff", "petugas farmasi", "id_farmasi", stempel(
+                i("id_farmasi"), i("account_id"), s("nama"), sz("phone")
+        ), List.of("account_id", "nama", "phone"),
+                List.of("account_id", "nama"),
+                Set.of(),
+                List.of("account_id"),
+                List.of(
+                        field("account_id", "required|is_natural_no_zero|is_not_unique[accounts.account_id]|is_unique[farmasi_staff.account_id,id_farmasi,{id_farmasi}]",
+                                "is_not_unique", "Akun tidak ditemukan.", "is_unique", "Akun ini sudah terhubung ke petugas farmasi lain."),
+                        field("nama", "required|max_length[150]"),
+                        field("phone", "permit_empty|max_length[20]|regex_match[/^08[0-9]{8,12}$/]", "regex_match", "Nomor telepon harus diawali 08.")
                 ), null);
     }
 
@@ -127,18 +157,16 @@ final class TableCatalog {
     }
 
     private static Table pasien() {
-        return bangun("pasien", "pasien", "id_pasien", stempel(
-                i("id_pasien"), i("id_user"), sz("no_rekam_medis"), s("nik"), sz("nomor_bpjs"), s("nama_lengkap"),
-                date("tanggal_lahir"), s("jenis_kelamin"), sz("alamat"), s("no_telepon"), sz("no_satusehat"),
-                tz("privacy_consent_at"), sz("privacy_policy_version"), b("terdaftar_satusehat")
-        ), List.of("id_user", "nik", "nomor_bpjs", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "alamat", "no_telepon", "terdaftar_satusehat"),
-                List.of("id_user", "nik", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "no_telepon"), Set.of(),
-                List.of("id_user", "nik", "jenis_kelamin"),
+        return bangun("patients", "pasien", "id_pasien", stempel(
+                i("id_pasien"), i("account_id"), sz("no_rekam_medis"), s("nik"), s("nama_lengkap"),
+                date("tanggal_lahir"), s("jenis_kelamin"), sz("alamat"), s("no_telepon"), b("terdaftar_satusehat")
+        ), List.of("account_id", "nik", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "alamat", "no_telepon", "terdaftar_satusehat"),
+                List.of("account_id", "nik", "nama_lengkap", "tanggal_lahir", "jenis_kelamin", "no_telepon"), Set.of(),
+                List.of("account_id", "nik", "jenis_kelamin"),
                 List.of(
-                        field("id_user", "required|is_natural_no_zero|is_not_unique[users.id_user]|is_unique[pasien.id_user,id_pasien,{id_pasien}]",
-                                "is_not_unique", "Akun pengguna tidak ditemukan.", "is_unique", "Akun ini sudah terhubung ke pasien lain."),
-                        field("nik", "required|max_length[16]|is_unique[pasien.nik,id_pasien,{id_pasien}]", "is_unique", "NIK sudah terdaftar."),
-                        field("nomor_bpjs", "permit_empty|max_length[20]|is_unique[pasien.nomor_bpjs,id_pasien,{id_pasien}]", "is_unique", "Nomor BPJS sudah terdaftar."),
+                        field("account_id", "required|is_natural_no_zero|is_not_unique[accounts.account_id]|is_unique[patients.account_id,id_pasien,{id_pasien}]",
+                                "is_not_unique", "Akun tidak ditemukan.", "is_unique", "Akun ini sudah terhubung ke pasien lain."),
+                        field("nik", "required|max_length[16]|is_unique[patients.nik,id_pasien,{id_pasien}]", "is_unique", "NIK sudah terdaftar."),
                         field("nama_lengkap", "required|max_length[150]"),
                         field("tanggal_lahir", "required|valid_date[Y-m-d]"),
                         field("jenis_kelamin", "required|in_list[L,P]", "in_list", "Jenis kelamin harus L atau P."),
@@ -150,13 +178,13 @@ final class TableCatalog {
 
     private static Table dokter() {
         return bangun("dokter", "dokter", "id_dokter", stempel(
-                i("id_dokter"), i("id_user"), i("id_poli"), s("nama_dokter"), sz("spesialisasi"), i("rata_waktu_periksa_menit"), b("is_active")
-        ), List.of("id_user", "id_poli", "nama_dokter", "spesialisasi", "rata_waktu_periksa_menit", "is_active"),
-                List.of("id_user", "id_poli", "nama_dokter"), Set.of(),
-                List.of("id_user", "id_poli", "is_active"),
+                i("id_dokter"), i("account_id"), i("id_poli"), s("nama_dokter"), sz("spesialisasi"), i("rata_waktu_periksa_menit"), b("is_active")
+        ), List.of("account_id", "id_poli", "nama_dokter", "spesialisasi", "rata_waktu_periksa_menit", "is_active"),
+                List.of("account_id", "id_poli", "nama_dokter"), Set.of(),
+                List.of("account_id", "id_poli", "is_active"),
                 List.of(
-                        field("id_user", "required|is_natural_no_zero|is_not_unique[users.id_user]|is_unique[dokter.id_user,id_dokter,{id_dokter}]",
-                                "is_not_unique", "Akun pengguna tidak ditemukan.", "is_unique", "Akun ini sudah terhubung ke dokter lain."),
+                        field("account_id", "required|is_natural_no_zero|is_not_unique[accounts.account_id]|is_unique[dokter.account_id,id_dokter,{id_dokter}]",
+                                "is_not_unique", "Akun tidak ditemukan.", "is_unique", "Akun ini sudah terhubung ke dokter lain."),
                         field("id_poli", "required|is_natural_no_zero|is_not_unique[poliklinik.id_poli]", "is_not_unique", "Poliklinik tidak ditemukan."),
                         field("nama_dokter", "required|max_length[150]"),
                         field("spesialisasi", "permit_empty|max_length[100]"),
@@ -189,7 +217,7 @@ final class TableCatalog {
                 List.of("id_pasien", "id_jadwal", "tanggal_kunjungan", "nomor_antrean"), Set.of(),
                 List.of("id_pasien", "id_jadwal", "tanggal_kunjungan", "status_antrean"),
                 List.of(
-                        field("id_pasien", "required|is_natural_no_zero|is_not_unique[pasien.id_pasien]", "is_not_unique", "Pasien tidak ditemukan."),
+                        field("id_pasien", "required|is_natural_no_zero|is_not_unique[patients.id_pasien]", "is_not_unique", "Pasien tidak ditemukan."),
                         field("id_jadwal", "required|is_natural_no_zero|is_not_unique[jadwal_dokter.id_jadwal]", "is_not_unique", "Jadwal dokter tidak ditemukan."),
                         field("tanggal_kunjungan", "required|valid_date[Y-m-d]"),
                         field("nomor_antrean", "required|integer|greater_than[0]"),
@@ -269,7 +297,7 @@ final class TableCatalog {
                 List.of("id_pasien", "jenis_notifikasi", "nomor_tujuan", "pesan"), Set.of(),
                 List.of("id_pasien", "id_pendaftaran", "jenis_notifikasi", "channel", "status"),
                 List.of(
-                        field("id_pasien", "required|is_natural_no_zero|is_not_unique[pasien.id_pasien]", "is_not_unique", "Pasien tidak ditemukan."),
+                        field("id_pasien", "required|is_natural_no_zero|is_not_unique[patients.id_pasien]", "is_not_unique", "Pasien tidak ditemukan."),
                         field("id_pendaftaran", "permit_empty|is_natural_no_zero|is_not_unique[pendaftaran_poli.id_pendaftaran]", "is_not_unique", "Pendaftaran tidak ditemukan."),
                         field("jenis_notifikasi", "required|in_list[Verifikasi WA,Konfirmasi Pendaftaran,Pengingat Kunjungan,QR Resep,Obat Siap]"),
                         field("channel", "if_exist|in_list[WhatsApp,PWA]"),
@@ -283,12 +311,12 @@ final class TableCatalog {
 
     private static Table otp() {
         return bangun("otp_verifikasi", "OTP", "id_otp", dibuat(
-                i("id_otp"), i("id_user"), s("kode_otp"), s("tujuan"), t("expired_at"), tz("verified_at"), i("attempt")
-        ), List.of("id_user", "kode_otp", "tujuan", "expired_at", "verified_at", "attempt"),
-                List.of("id_user", "kode_otp", "tujuan", "expired_at"), Set.of(),
-                List.of("id_user"),
+                i("id_otp"), i("account_id"), s("kode_otp"), s("tujuan"), t("expired_at"), tz("verified_at"), i("attempt")
+        ), List.of("account_id", "kode_otp", "tujuan", "expired_at", "verified_at", "attempt"),
+                List.of("account_id", "kode_otp", "tujuan", "expired_at"), Set.of(),
+                List.of("account_id"),
                 List.of(
-                        field("id_user", "required|is_natural_no_zero|is_not_unique[users.id_user]", "is_not_unique", "Akun pengguna tidak ditemukan."),
+                        field("account_id", "required|is_natural_no_zero|is_not_unique[accounts.account_id]", "is_not_unique", "Akun tidak ditemukan."),
                         field("kode_otp", "required|max_length[64]"),
                         field("tujuan", "required|max_length[20]"),
                         field("expired_at", "required|valid_date[Y-m-d H:i:s]"),
@@ -299,15 +327,15 @@ final class TableCatalog {
 
     private static Table pengambilan() {
         return bangun("pengambilan_obat", "pengambilan obat", "id_pengambilan", stempel(
-                i("id_pengambilan"), i("id_resep"), i("id_user_petugas"), s("diambil_oleh"), sz("nama_pengambil"),
+                i("id_pengambilan"), i("id_resep"), i("account_petugas"), s("diambil_oleh"), sz("nama_pengambil"),
                 t("waktu_pengambilan"), s("metode_verifikasi"), s("status"), sz("catatan")
-        ), List.of("id_resep", "id_user_petugas", "diambil_oleh", "nama_pengambil", "waktu_pengambilan", "metode_verifikasi", "status", "catatan"),
-                List.of("id_resep", "id_user_petugas", "diambil_oleh", "metode_verifikasi"), Set.of(),
-                List.of("id_resep", "id_user_petugas", "status", "diambil_oleh"),
+        ), List.of("id_resep", "account_petugas", "diambil_oleh", "nama_pengambil", "waktu_pengambilan", "metode_verifikasi", "status", "catatan"),
+                List.of("id_resep", "account_petugas", "diambil_oleh", "metode_verifikasi"), Set.of(),
+                List.of("id_resep", "account_petugas", "status", "diambil_oleh"),
                 List.of(
                         field("id_resep", "required|is_natural_no_zero|is_not_unique[resep.id_resep]|is_unique[pengambilan_obat.id_resep,id_pengambilan,{id_pengambilan}]",
                                 "is_not_unique", "Resep tidak ditemukan.", "is_unique", "Resep ini sudah dicatat pengambilannya."),
-                        field("id_user_petugas", "required|is_natural_no_zero|is_not_unique[users.id_user]", "is_not_unique", "Petugas tidak ditemukan."),
+                        field("account_petugas", "required|is_natural_no_zero|is_not_unique[accounts.account_id]", "is_not_unique", "Petugas tidak ditemukan."),
                         field("diambil_oleh", "required|in_list[Pasien,Keluarga]"),
                         field("nama_pengambil", "permit_empty|max_length[150]"),
                         field("waktu_pengambilan", "permit_empty|valid_date[Y-m-d H:i:s]"),
@@ -319,13 +347,13 @@ final class TableCatalog {
 
     private static Table mutasi() {
         return bangun("mutasi_stok", "mutasi stok", "id_mutasi", dibuat(
-                i("id_mutasi"), i("id_obat"), i("id_user"), s("jenis_mutasi"), i("jumlah"), i("stok_sebelum"), i("stok_sesudah"), sz("keterangan")
-        ), List.of("id_obat", "id_user", "jenis_mutasi", "jumlah", "stok_sebelum", "stok_sesudah", "keterangan"),
-                List.of("id_obat", "id_user", "jenis_mutasi", "jumlah", "stok_sebelum", "stok_sesudah"), Set.of(),
-                List.of("id_obat", "id_user", "jenis_mutasi"),
+                i("id_mutasi"), i("id_obat"), i("account_user"), s("jenis_mutasi"), i("jumlah"), i("stok_sebelum"), i("stok_sesudah"), sz("keterangan")
+        ), List.of("id_obat", "account_user", "jenis_mutasi", "jumlah", "stok_sebelum", "stok_sesudah", "keterangan"),
+                List.of("id_obat", "account_user", "jenis_mutasi", "jumlah", "stok_sebelum", "stok_sesudah"), Set.of(),
+                List.of("id_obat", "account_user", "jenis_mutasi"),
                 List.of(
                         field("id_obat", "required|is_natural_no_zero|is_not_unique[obat.id_obat]", "is_not_unique", "Obat tidak ditemukan."),
-                        field("id_user", "required|is_natural_no_zero|is_not_unique[users.id_user]", "is_not_unique", "Pengguna tidak ditemukan."),
+                        field("account_user", "required|is_natural_no_zero|is_not_unique[accounts.account_id]", "is_not_unique", "Pengguna tidak ditemukan."),
                         field("jenis_mutasi", "required|in_list[Masuk,Keluar,Penyesuaian]"),
                         field("jumlah", "required|integer|greater_than[0]"),
                         field("stok_sebelum", "required|integer"),
@@ -336,12 +364,12 @@ final class TableCatalog {
 
     private static Table log() {
         return bangun("log_aktivitas", "log aktivitas", "id_log", dibuat(
-                i("id_log"), iz("id_user"), s("aktivitas"), sz("tabel_referensi"), iz("id_referensi"), sz("keterangan"), sz("ip_address")
-        ), List.of("id_user", "aktivitas", "tabel_referensi", "id_referensi", "keterangan", "ip_address"),
+                i("id_log"), iz("account_id"), s("aktivitas"), sz("tabel_referensi"), iz("id_referensi"), sz("keterangan"), sz("ip_address")
+        ), List.of("account_id", "aktivitas", "tabel_referensi", "id_referensi", "keterangan", "ip_address"),
                 List.of("aktivitas"), Set.of(),
-                List.of("id_user", "aktivitas", "tabel_referensi"),
+                List.of("account_id", "aktivitas", "tabel_referensi"),
                 List.of(
-                        field("id_user", "permit_empty|is_natural_no_zero|is_not_unique[users.id_user]", "is_not_unique", "Pengguna tidak ditemukan."),
+                        field("account_id", "permit_empty|is_natural_no_zero|is_not_unique[accounts.account_id]", "is_not_unique", "Pengguna tidak ditemukan."),
                         field("aktivitas", "required|max_length[100]"),
                         field("tabel_referensi", "permit_empty|max_length[100]"),
                         field("id_referensi", "permit_empty|is_natural_no_zero"),

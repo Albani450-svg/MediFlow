@@ -40,8 +40,8 @@ final class DatabaseSnapshot {
                 throw new IllegalStateException("Tabel " + tabel.name() + " tidak lengkap.");
             }
         }
-        if (((List<?>) data.get("users")).isEmpty()) {
-            throw new IllegalStateException("Users kosong, penyimpanan dibatalkan.");
+        if (((List<?>) data.get("accounts")).isEmpty()) {
+            throw new IllegalStateException("Akun kosong, penyimpanan dibatalkan.");
         }
 
         boolean otomatis = db.getAutoCommit();

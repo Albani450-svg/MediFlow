@@ -335,6 +335,16 @@ final class HtmlPages {
         }
     }
 
+    void akunDariAlamat(String akun) {
+        if (akun == null || akun.isBlank()) {
+            return;
+        }
+        akunLogin = akun.trim();
+        if ("pasien".equals(peran)) {
+            loginPasienTerbuka = true;
+        }
+    }
+
     private void pilihPeran(String nilai) {
         Akun akun = akun(nilai);
         peran = akun.peran;
@@ -1300,7 +1310,7 @@ final class HtmlPages {
             }
         } catch (java.sql.SQLException error) {
             System.err.println("[mediflow] Pendaftaran staf tidak dapat dimuat: " + ColumnValues.pesan(error));
-            sb.append("<p class=\"notice error\">Daftar persetujuan tidak dapat dimuat. Periksa migrasi database.</p>");
+            sb.append("<p class=\"notice error\">Daftar persetujuan tidak dapat dimuat. Periksa database.</p>");
         }
         sb.append("</div></section>");
         return sb.toString();
@@ -1314,6 +1324,9 @@ final class HtmlPages {
         }
         long requestId = angka(form.get("request_id"), 0);
         PatientRegistration.Result result = PatientRegistration.tinjauStaf(requestId, admin.id_user, setuju);
+        if (Boolean.TRUE.equals(result.body().get("status"))) {
+            toko.selaraskanAkun();
+        }
         kabar(String.valueOf(result.body().get("message")), !Boolean.TRUE.equals(result.body().get("status")));
     }
 

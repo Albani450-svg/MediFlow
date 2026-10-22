@@ -39,17 +39,15 @@ Memilih apotek luar pada langkah 6 menutup kunjungan tanpa mengurangi stok rumah
 Perlu JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP untuk MySQL. `java` harus ada di PATH, atau tunjuk folder JDK lewat `JAVA_HOME`. Node.js tidak dipakai.
 
 ```powershell
-# 1. Buat database medicflow_db, lalu impor skema dan penyesuaian demo.
+# 1. Buat database kosong, impor dump, lalu pasang kata sandi demo.
 #    phpMyAdmin, atau:
-#    mysql -u root < db/schema.sql
+#    mysql -u root -e "DROP DATABASE IF EXISTS medicflow_db; CREATE DATABASE medicflow_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+#    mysql -u root medicflow_db < db/schema.sql
 #    mysql -u root medicflow_db < db/sesuaikan-akun-demo.sql
-#    Untuk database yang sudah ada, jalankan migrasi yang belum diterapkan:
-#    mysql -u root medicflow_db < db/migrations/001-registrasi-pasien.sql
-#    mysql -u root medicflow_db < db/migrations/002-registrasi-staf.sql
-#    mysql -u root medicflow_db < db/migrations/003-data-registrasi-profil.sql
+#    Migrasi 001-003 hanya untuk skema lama (users/pasien). Jangan dijalankan pada dump ini.
 
 # 2. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
-#    Perintah ini mengganti isi 15 tabel medicflow_db.
+#    Perintah ini mengganti isi 17 tabel medicflow_db.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1 dummy
 
 # 3. Jalankan aplikasi. Peramban terbuka ke halaman masuk.
@@ -68,9 +66,9 @@ Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`,
 
 Di layar masuk, pilih peran Pasien untuk melihat tombol daftar atau masuk yang sebelumnya disembunyikan. Pendaftaran menerima peran Pasien, Dokter, atau Apoteker (disimpan sebagai role `farmasi`). Semua pendaftar memverifikasi nomor WhatsApp dengan OTP dan menetapkan kata sandi minimal 10 karakter. Kata sandi disimpan dengan PBKDF2-HMAC-SHA256; login demo lama tetap didukung.
 
-Pasien melengkapi NIK, tanggal lahir, jenis kelamin, alamat, nomor BPJS (opsional), nomor SATUSEHAT (opsional), serta menyetujui kebijakan privasi. Waktu persetujuan dan versi kebijakan disimpan bersama profil pasien. Nomor telepon/WhatsApp diverifikasi saat OTP. Pasien aktif setelah data lengkap dan mendapat nomor rekam medis. Dokter mengisi nama, SIP, spesialisasi, dan poli; apoteker mengisi nama dan SIPA. Akun staf tidak aktif sampai admin memeriksa permohonan di halaman admin dan menyetujuinya. Poli dokter yang diajukan ditampilkan untuk admin saat meninjau. Permohonan yang ditolak tidak bisa digunakan untuk login.
+Pasien melengkapi NIK, tanggal lahir, jenis kelamin, dan alamat, lalu menyetujui kebijakan privasi. Nomor BPJS dan SATUSEHAT masih ditanyakan di formulir, tetapi dump saat ini tidak punya kolom untuk keduanya. Nomor telepon diverifikasi lewat OTP. Pasien aktif setelah data lengkap dan mendapat nomor rekam medis. Dokter mengisi nama, SIP, spesialisasi, dan poli; apoteker mengisi nama dan SIPA. Akun staf tetap nonaktif sampai admin menyetujuinya. Nomor izin disimpan di log aktivitas karena tidak ada tabel permohonan. Permohonan yang ditolak tidak bisa dipakai untuk masuk.
 
-Untuk database yang sudah dibuat sebelum fitur registrasi, jalankan migrasi `db/migrations/001-registrasi-pasien.sql`, `db/migrations/002-registrasi-staf.sql`, dan `db/migrations/003-data-registrasi-profil.sql` yang belum diterapkan, berurutan dan masing-masing satu kali. Jika migrasi 001 dan 002 sudah pernah dijalankan, jalankan migrasi 003. Akun lama tetap berstatus `ACTIVE`. Sebelum menjalankan aplikasi, atur variabel lingkungan berikut:
+Peran tidak disimpan di `accounts`. Admin, dokter, farmasi, dan pasien masing-masing punya baris di `admins`, `dokter`, `farmasi_staff`, atau `patients`. Sebelum menjalankan aplikasi, atur variabel lingkungan berikut:
 
 - `MEDIFLOW_OTP_SECRET`: rahasia acak minimal 32 karakter untuk menyimpan hash OTP.
 - `MEDIFLOW_DELIVERY_URL`: URL HTTPS endpoint provider WhatsApp yang menerima JSON `{"to":"+62...","message":"..."}`.
@@ -78,7 +76,7 @@ Untuk database yang sudah dibuat sebelum fitur registrasi, jalankan migrasi `db/
 
 Registrasi mengembalikan error jika database atau konfigurasi/provider pengiriman tidak tersedia; aplikasi tidak menganggap OTP terkirim. OTP berlaku 10 menit, percobaan verifikasi dibatasi, dan jumlah pendaftaran dibatasi per alamat IP serta nomor WhatsApp. Provider perlu disiapkan agar sesuai kontrak REST di atas.
 
-`db/schema.sql` adalah skema beserta data master. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya login demo cocok dengan aplikasi: kata sandi demo memakai SHA-256, dan pasien Budi Santoso Edit mendapat akun `budi` sendiri. `scripts\run-application.ps1 dummy` mengisi data uji dari `api/src/mediflow/DemoData.java` dan mengganti isi tabel.
+`db/schema.sql` adalah dump phpMyAdmin 22 Oktober 2026 beserta data master. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya akun `admin`, `dokter01`, `farmasi01`, dan `budi` bisa masuk: kata sandi demo memakai SHA-256. Akun yang mendaftar sendiri tidak diubah. `scripts\run-application.ps1 dummy` mengisi data uji dari `api/src/mediflow/DemoData.java` dan mengganti isi tabel.
 
 Jika MySQL tidak terjangkau, proses Java memakai data uji di memori dan tidak menuliskannya kembali. Jika proses Java berhenti, aplikasi tidak bisa dibuka: layar tidak lagi disimpan di peramban.
 
@@ -160,8 +158,8 @@ API tetap tersedia di proses yang sama:
 | --- | --- |
 | GET | `/api` kesehatan `{ "ok", "service": "mediflow", "language": "java" }` |
 | GET | `/api/database` (snapshot hanya-baca) |
-| GET | `/api/users` dan `/api/users/{id}` (akun tidak dapat diubah melalui CRUD umum) |
-| GET, POST | `/api/pasien`, `/api/poliklinik`, `/api/dokter`, `/api/jadwal_dokter`, `/api/obat`, `/api/pendaftaran_poli`, `/api/pemeriksaan`, `/api/resep`, `/api/detail_resep`, `/api/notifikasi`, `/api/otp_verifikasi`, `/api/pengambilan_obat`, `/api/mutasi_stok`, `/api/log_aktivitas` |
+| GET | `/api/accounts`, `/api/patients`, `/api/admins`, `/api/farmasi_staff`, dan `/{id}` (baris ini tidak dapat diubah melalui CRUD umum) |
+| GET, POST | `/api/poliklinik`, `/api/dokter`, `/api/jadwal_dokter`, `/api/obat`, `/api/pendaftaran_poli`, `/api/pemeriksaan`, `/api/resep`, `/api/detail_resep`, `/api/notifikasi`, `/api/otp_verifikasi`, `/api/pengambilan_obat`, `/api/mutasi_stok`, `/api/log_aktivitas` |
 | GET, PUT, PATCH, DELETE | jalur tersebut ditambah `/{id}` |
 | POST | `/api/auth/register` — nama, email, `no_telepon`, password, dan role `pasien`, `dokter`, atau `farmasi` |
 | POST | `/api/auth/register/verify-otp` — email dan `kode_otp` |
@@ -173,4 +171,4 @@ Balasan CRUD berbentuk `{ "status", "message", "data" }`. Daftar bisa disaring l
 
 Perubahan dari layar menulis seluruh database lewat snapshot. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
 
-Tabel: `users`, `pasien`, `poliklinik`, `dokter`, `jadwal_dokter`, `obat`, `pendaftaran_poli`, `pemeriksaan`, `resep`, `detail_resep`, `notifikasi`, `otp_verifikasi`, `auth_rate_limits`, `staff_registration_requests`, `pengambilan_obat`, `mutasi_stok`, `log_aktivitas`.
+Tabel: `accounts`, `admins`, `farmasi_staff`, `patients`, `poliklinik`, `dokter`, `jadwal_dokter`, `obat`, `pendaftaran_poli`, `pemeriksaan`, `resep`, `detail_resep`, `notifikasi`, `otp_verifikasi`, `auth_rate_limits`, `pengambilan_obat`, `mutasi_stok`, `log_aktivitas`.

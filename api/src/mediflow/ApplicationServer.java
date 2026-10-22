@@ -124,6 +124,9 @@ public final class ApplicationServer {
         } else {
             result = PatientRegistration.lengkapiProfil(data);
         }
+        if (result.status() >= 200 && result.status() < 300) {
+            WebSite.selaraskanSesi();
+        }
         kirim(tukar, result.status(), result.body());
     }
 
@@ -185,7 +188,8 @@ public final class ApplicationServer {
             kirim(tukar, 404, tidakAda());
             return;
         }
-        if (("users".equals(tabel.name()) || "pasien".equals(tabel.name()))
+        if (("accounts".equals(tabel.name()) || "patients".equals(tabel.name())
+                || "admins".equals(tabel.name()) || "farmasi_staff".equals(tabel.name()))
                 && ("POST".equals(metode) || "PUT".equals(metode)
                 || "PATCH".equals(metode) || "DELETE".equals(metode))) {
             kirim(tukar, 403, Map.of(
