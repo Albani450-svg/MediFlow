@@ -1,6 +1,8 @@
 -- Kata sandi demo setelah impor dump medicflow_db.
--- Dump menyimpan placeholder, bukan hash yang bisa diperiksa layar masuk.
+-- Dump menyimpan placeholder $2y$10$abcdefghijklmnopqrstuv, bukan hash yang bisa dipakai masuk.
 -- Nilai di bawah adalah SHA-256. Akun lain, termasuk pasien yang mendaftar sendiri, tidak diubah.
+-- Lembar login dummy menandai dummy_pasien01 dan dummy_pasien02 sebagai belum disetel.
+-- Keduanya memakai kata sandi pasien yang sama dengan akun demo pasien: pasien123.
 
 UPDATE accounts
 SET password_hash = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'
@@ -16,4 +18,4 @@ WHERE username = 'farmasi01';
 
 UPDATE accounts
 SET password_hash = 'b3cb1bf1350e826eafc2250c570837e1ef1a0e8d6fece2c3478740670ce8fed1'
-WHERE username = 'budi';
+WHERE username IN ('dummy_pasien01', 'dummy_pasien02');

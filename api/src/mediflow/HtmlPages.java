@@ -17,8 +17,8 @@ final class HtmlPages {
                          String ikon) {}
 
     private static final List<Akun> AKUN = List.of(
-            new Akun("pasien", "budi", "pasien123", "Budi Santoso Edit • budi", "Pasien",
-                    "Daftar poli, lihat giliran, pilih apotek, dan tunjukkan kode pengambilan", "👤"),
+            new Akun("pasien", "dummy_pasien01", "pasien123", "Siti Rahma Dummy • dummy_pasien01", "Pasien",
+                    "dummy_pasien01 (Siti, obat sudah diambil) atau dummy_pasien02 (Andi, masih menunggu). Kata sandi pasien123", "👤"),
             new Akun("dokter", "dokter01", "dokter123", "Dr. Ahmad • dokter01", "Dokter",
                     "Periksa pasien, tulis diagnosis, dan kirim resep ke farmasi", "🩺"),
             new Akun("admin", "admin", "admin123", "Administrator • admin", "Admin & Perawat",
@@ -781,7 +781,7 @@ final class HtmlPages {
                     .append(loginPasienTerbuka ? "" : " hidden").append(">");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"akun-login\">Email / akun pasien</label>");
             sb.append("<input class=\"input-field\" id=\"akun-login\" name=\"akun\" autocomplete=\"username\" value=\"")
-                    .append(e(akunLogin)).append("\"></div>");
+                    .append(e(akunLogin.isEmpty() ? akun.username : akunLogin)).append("\"></div>");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"sandi-login\">Kata sandi</label>");
             sb.append("<input class=\"input-field\" id=\"sandi-login\" type=\"password\" name=\"sandi\" autocomplete=\"current-password\"></div>");
             sb.append("<button class=\"btn-primary\" id=\"btn-login\" type=\"submit\" name=\"aksi\" value=\"masuk\">Masuk ke Sistem →</button>");

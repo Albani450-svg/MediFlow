@@ -3,9 +3,14 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 22, 2026 at 02:17 AM
+-- Generation Time: Oct 22, 2026 at 09:35 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.5.4
+--
+-- Isi data dari dump MySQL 8.0.30 (22 Oktober 2026, 09:35) dan lembar login dummy.
+-- Skema tetap accounts, admins, dokter, farmasi_staff, dan patients.
+-- users.id_user menjadi accounts.account_id. Tabel pasien menjadi patients.
+-- Hash di bawah masih placeholder. Jalankan db/sesuaikan-akun-demo.sql sesudah impor.
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -42,11 +47,11 @@ CREATE TABLE `accounts` (
 --
 
 INSERT INTO `accounts` (`account_id`, `username`, `email`, `password_hash`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'admin', 'admin@local', '$pbkdf2_placeholder_admin$', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(2, 'dokter01', 'dokter01@local', '$pbkdf2_placeholder_dokter$', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(3, 'farmasi01', 'farmasi01@local', '$pbkdf2_placeholder_farmasi$', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(4, 'budi', 'budi@example.com', '$pbkdf2_placeholder_budi$', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(5, 'rezahardian@gmail.com', 'rezahardian@gmail.com', 'pbkdf2-sha256$210000$Ern1kUkzn8L14-S1TlhXew$w0TxVDJLO8qO8QeY6h6RxX32kh5PEiekJ109tchL2hQ', 1, '2026-10-20 15:44:43', '2026-10-22 02:16:57');
+(1, 'admin', NULL, '$2y$10$abcdefghijklmnopqrstuv', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(2, 'dokter01', NULL, '$2y$10$abcdefghijklmnopqrstuv', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(3, 'farmasi01', NULL, '$2y$10$abcdefghijklmnopqrstuv', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(100, 'dummy_pasien01', NULL, '$2y$10$abcdefghijklmnopqrstuv', 1, '2026-10-22 09:30:29', '2026-10-22 09:30:29'),
+(101, 'dummy_pasien02', NULL, '$2y$10$abcdefghijklmnopqrstuv', 1, '2026-10-22 09:30:29', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -69,7 +74,7 @@ CREATE TABLE `admins` (
 --
 
 INSERT INTO `admins` (`id_admin`, `account_id`, `nama`, `phone`, `is_super`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Administrator', '081234567890', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(1, 1, 'Administrator', '081234567890', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44');
 
 -- --------------------------------------------------------
 
@@ -83,13 +88,7 @@ CREATE TABLE `auth_rate_limits` (
   `attempt_count` int(10) UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `auth_rate_limits`
---
-
-INSERT INTO `auth_rate_limits` (`scope_key`, `window_started_at`, `attempt_count`) VALUES
-('03a1c3165419973b54a31901b132bd1438a87dc28d04a40a8f796d81e1f0f4d9', '2026-10-20 15:44:42', 1),
-('cf8452123abfde4e849498de96f03666d392c2894c9855568135d55cbdd41e67', '2026-10-20 15:44:42', 1);
+-- Dump 09:35 tidak berisi baris auth_rate_limits.
 
 -- --------------------------------------------------------
 
@@ -114,8 +113,8 @@ CREATE TABLE `detail_resep` (
 --
 
 INSERT INTO `detail_resep` (`id_detail`, `id_resep`, `id_obat`, `jumlah`, `dosis_aturan_pakai`, `instruksi_racikan`, `catatan`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 10, '1 tablet setiap 6 jam', NULL, NULL, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(2, 1, 3, 5, '1 tablet sehari sebelum tidur', NULL, NULL, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(100, 100, 1, 10, 'DATA DUMMY: sesuai instruksi dokter', NULL, 'Simulasi saja; bukan petunjuk penggunaan obat nyata', '2026-10-22 09:30:29', '2026-10-22 09:30:29'),
+(101, 100, 3, 5, 'DATA DUMMY: sesuai instruksi dokter', NULL, 'Simulasi saja; bukan petunjuk penggunaan obat nyata', '2026-10-22 09:30:29', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -140,7 +139,7 @@ CREATE TABLE `dokter` (
 --
 
 INSERT INTO `dokter` (`id_dokter`, `account_id`, `id_poli`, `nama_dokter`, `spesialisasi`, `rata_waktu_periksa_menit`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 2, 1, 'Dr. Ahmad', 'Dokter Umum', 15, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(1, 2, 1, 'Dr. Ahmad', 'Dokter Umum', 15, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44');
 
 -- --------------------------------------------------------
 
@@ -162,7 +161,7 @@ CREATE TABLE `farmasi_staff` (
 --
 
 INSERT INTO `farmasi_staff` (`id_farmasi`, `account_id`, `nama`, `phone`, `created_at`, `updated_at`) VALUES
-(3, 3, 'Petugas Farmasi', '081234567892', '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(3, 3, 'Petugas Farmasi', '081234567892', '2026-10-02 20:53:44', '2026-10-02 20:53:44');
 
 -- --------------------------------------------------------
 
@@ -187,8 +186,8 @@ CREATE TABLE `jadwal_dokter` (
 --
 
 INSERT INTO `jadwal_dokter` (`id_jadwal`, `id_dokter`, `hari`, `jam_mulai`, `jam_selesai`, `kuota_maksimal`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Senin', '08:00:00', '12:00:00', 30, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(2, 1, 'Rabu', '08:00:00', '12:00:00', 30, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(1, 1, 'Senin', '08:00:00', '12:00:00', 30, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(2, 1, 'Rabu', '08:00:00', '12:00:00', 30, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44');
 
 -- --------------------------------------------------------
 
@@ -212,10 +211,7 @@ CREATE TABLE `log_aktivitas` (
 --
 
 INSERT INTO `log_aktivitas` (`id_log`, `account_id`, `aktivitas`, `tabel_referensi`, `id_referensi`, `keterangan`, `ip_address`, `created_at`) VALUES
-(1, 1, 'Init DB', NULL, NULL, 'Seed data inserted', '127.0.0.1', '2026-10-16 16:28:52'),
-(2, 5, 'REGISTER_PATIENT', 'patients', 2, 'Pasien menyelesaikan registrasi mandiri', NULL, '2026-10-20 15:44:43'),
-(3, 5, 'LOGIN', 'users', 5, 'Masuk sebagai pasien', NULL, '2026-10-20 15:45:24'),
-(4, 5, 'LOGIN', 'users', 5, 'Masuk sebagai pasien', NULL, '2026-10-22 02:16:57');
+(100, 1, 'SEED_DATA_DUMMY', 'pendaftaran_poli', 100, 'Data dummy MedicFlow dimasukkan untuk pengujian lokal', '127.0.0.1', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -240,7 +236,7 @@ CREATE TABLE `mutasi_stok` (
 --
 
 INSERT INTO `mutasi_stok` (`id_mutasi`, `id_obat`, `account_user`, `jenis_mutasi`, `jumlah`, `stok_sebelum`, `stok_sesudah`, `keterangan`, `created_at`) VALUES
-(1, 1, 1, 'Penyesuaian', 0, 100, 100, 'Initial stock', '2026-10-16 16:28:52');
+(100, 1, 3, 'Penyesuaian', 100, 100, 100, 'DATA DUMMY - pencatatan simulasi; stok tabel obat tidak diubah oleh seed ini', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -261,6 +257,14 @@ CREATE TABLE `notifikasi` (
   `response_api` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `notifikasi`
+--
+
+INSERT INTO `notifikasi` (`id_notifikasi`, `id_pasien`, `id_pendaftaran`, `jenis_notifikasi`, `channel`, `nomor_tujuan`, `pesan`, `status`, `waktu_dikirim`, `response_api`, `created_at`) VALUES
+(100, 100, 100, 'Konfirmasi Pendaftaran', 'WhatsApp', '081200000100', 'DATA DUMMY: Pendaftaran MedicFlow berhasil dicatat. Silakan periksa jadwal melalui aplikasi.', 'Pending', NULL, 'Seed dummy; belum dikirim ke WhatsApp', '2026-10-22 09:30:29'),
+(101, 101, 101, 'Pengingat Kunjungan', 'WhatsApp', '081200000101', 'DATA DUMMY: Ini contoh pengingat kunjungan MedicFlow untuk pengujian.', 'Pending', NULL, 'Seed dummy; belum dikirim ke WhatsApp', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -288,10 +292,10 @@ CREATE TABLE `obat` (
 --
 
 INSERT INTO `obat` (`id_obat`, `kode_kemenkes`, `nama_obat`, `jenis_obat`, `satuan`, `cover_bpjs`, `stok_rs`, `stok_minimum`, `harga`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'OBT001', 'Paracetamol 500mg', 'Jadi', 'Tablet', 1, 100, 20, 500.00, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(2, 'OBT002', 'Amoxicillin 500mg', 'Jadi', 'Kapsul', 1, 80, 20, 1000.00, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(3, 'OBT003', 'Cetirizine 10mg', 'Jadi', 'Tablet', 0, 50, 10, 1500.00, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(4, 'OBT004', 'Racikan Batuk', 'Racikan', 'Paket', 0, 20, 5, 15000.00, 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(1, 'OBT001', 'Paracetamol 500mg', 'Jadi', 'Tablet', 1, 100, 20, 500.00, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(2, 'OBT002', 'Amoxicillin 500mg', 'Jadi', 'Kapsul', 1, 80, 20, 1000.00, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(3, 'OBT003', 'Cetirizine 10mg', 'Jadi', 'Tablet', 0, 50, 10, 1500.00, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(4, 'OBT004', 'Racikan Batuk', 'Racikan', 'Paket', 0, 20, 5, 15000.00, 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44');
 
 -- --------------------------------------------------------
 
@@ -309,6 +313,13 @@ CREATE TABLE `otp_verifikasi` (
   `attempt` int(10) UNSIGNED NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `otp_verifikasi`
+--
+
+INSERT INTO `otp_verifikasi` (`id_otp`, `account_id`, `kode_otp`, `tujuan`, `expired_at`, `verified_at`, `attempt`, `created_at`) VALUES
+(100, 100, '123456', '081200000100', '2026-10-26 10:00:00', NULL, 0, '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -336,8 +347,10 @@ CREATE TABLE `patients` (
 --
 
 INSERT INTO `patients` (`id_pasien`, `account_id`, `no_rekam_medis`, `nik`, `nama_lengkap`, `tanggal_lahir`, `jenis_kelamin`, `alamat`, `no_telepon`, `terdaftar_satusehat`, `created_at`, `updated_at`) VALUES
-(1, 4, 'RM-0001', '3471001234567890', 'Budi Santoso', '2000-01-15', 'L', 'Sleman, Yogyakarta', '089876543210', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(2, 5, 'RM202600000002', '3243555566667777', 'Reza Hardian', '1997-07-09', 'L', NULL, '088899997777', 0, '2026-10-20 15:44:43', '2026-10-20 15:44:43');
+(2, 1, NULL, '3471001234567890', 'Budi Santoso Edit', '2000-01-15', 'L', 'Sleman, Yogyakarta', '089876543210', 1, '2026-10-07 03:46:17', '2026-10-20 07:10:22'),
+(5, 2, NULL, 'TEST000000000001', 'Pasien Uji MedicFlow', '2000-01-15', 'L', 'Alamat Uji', '081234567890', 0, '2026-10-20 06:53:15', '2026-10-20 06:53:15'),
+(100, 100, NULL, 'TEST000000000100', 'Siti Rahma Dummy', '1998-04-12', 'P', 'Alamat Dummy 100, Yogyakarta', '081200000100', 0, '2026-10-22 09:30:29', '2026-10-22 09:30:29'),
+(101, 101, NULL, 'TEST000000000101', 'Andi Pratama Dummy', '1995-09-23', 'L', 'Alamat Dummy 101, Yogyakarta', '081200000101', 0, '2026-10-22 09:30:29', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -368,7 +381,7 @@ CREATE TABLE `pemeriksaan` (
 --
 
 INSERT INTO `pemeriksaan` (`id_pemeriksaan`, `id_pendaftaran`, `id_dokter`, `keluhan`, `tekanan_darah`, `suhu_tubuh`, `berat_badan`, `tinggi_badan`, `diagnosis`, `tindakan`, `catatan_dokter`, `waktu_mulai`, `waktu_selesai`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'Keluhan contoh: demam dan batuk', NULL, NULL, NULL, NULL, '', '', NULL, '2026-10-16 16:28:52', NULL, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(100, 100, 1, 'DATA DUMMY: keluhan sakit kepala ringan', '120/80', 36.7, 58.00, 160.00, 'DATA DUMMY: evaluasi keluhan umum', 'Pemeriksaan umum dan edukasi', 'Data simulasi, bukan rekam medis nyata', '2026-10-26 08:00:00', '2026-10-26 08:15:00', '2026-10-22 09:30:29', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -395,7 +408,8 @@ CREATE TABLE `pendaftaran_poli` (
 --
 
 INSERT INTO `pendaftaran_poli` (`id_pendaftaran`, `id_pasien`, `id_jadwal`, `tanggal_kunjungan`, `nomor_antrean`, `waktu_check_in`, `estimasi_jam_masuk`, `status_antrean`, `catatan_pasien`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, '2026-10-16', 1, NULL, NULL, 'Menunggu', NULL, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(100, 100, 1, '2026-10-26', 1, '2026-10-26 07:45:00', '2026-10-26 08:00:00', 'Selesai Pemeriksaan', 'DATA DUMMY - kontrol umum', '2026-10-22 09:30:29', '2026-10-22 09:30:29'),
+(101, 101, 1, '2026-10-26', 2, NULL, '2026-10-26 08:15:00', 'Menunggu', 'DATA DUMMY - pemeriksaan umum', '2026-10-22 09:30:29', '2026-10-22 09:30:29');
 
 -- --------------------------------------------------------
 
@@ -417,6 +431,13 @@ CREATE TABLE `pengambilan_obat` (
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `pengambilan_obat`
+--
+
+INSERT INTO `pengambilan_obat` (`id_pengambilan`, `id_resep`, `account_petugas`, `diambil_oleh`, `nama_pengambil`, `waktu_pengambilan`, `metode_verifikasi`, `status`, `catatan`, `created_at`, `updated_at`) VALUES
+(100, 100, 3, 'Pasien', 'Siti Rahma Dummy', '2026-10-26 09:05:00', 'QR', 'Berhasil', 'DATA DUMMY - simulasi pengambilan', '2026-10-22 09:30:29', '2026-10-22 09:30:29');
+
 -- --------------------------------------------------------
 
 --
@@ -437,10 +458,10 @@ CREATE TABLE `poliklinik` (
 --
 
 INSERT INTO `poliklinik` (`id_poli`, `nama_poli`, `deskripsi`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Poli Umum', 'Pelayanan kesehatan umum', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(2, 'Poli Gigi', 'Pelayanan kesehatan gigi', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(3, 'Poli Anak', 'Pelayanan kesehatan anak', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52'),
-(4, 'Poli Mata', 'Pelayanan kesehatan mata', 1, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(1, 'Poli Umum', 'Pelayanan kesehatan umum', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(2, 'Poli Gigi', 'Pelayanan kesehatan gigi dan mulut', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(3, 'Poli Anak', 'Pelayanan kesehatan anak', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44'),
+(4, 'Poli Mata', 'Pelayanan kesehatan mata', 1, '2026-10-02 20:53:44', '2026-10-02 20:53:44');
 
 -- --------------------------------------------------------
 
@@ -466,7 +487,7 @@ CREATE TABLE `resep` (
 --
 
 INSERT INTO `resep` (`id_resep`, `id_pendaftaran`, `kode_qr_unik`, `waktu_diterbitkan`, `pilihan_penebusan`, `estimasi_jam_selesai`, `status_resep`, `kadaluarsa_qr`, `created_at`, `updated_at`) VALUES
-(1, 1, 'QR-0001-EX', '2026-10-16 16:28:52', 'Apotek RS', NULL, 'Antrean Farmasi', NULL, '2026-10-16 16:28:52', '2026-10-16 16:28:52');
+(100, 100, 'DUMMY-QR-MEDICFLOW-100', '2026-10-26 08:16:00', 'Apotek RS', '2026-10-26 09:00:00', 'Selesai Diambil', '2026-10-27 08:16:00', '2026-10-22 09:30:29', '2026-10-22 09:30:29');
 
 --
 -- Indexes for dumped tables
@@ -617,7 +638,7 @@ ALTER TABLE `resep`
 -- AUTO_INCREMENT for table `accounts`
 --
 ALTER TABLE `accounts`
-  MODIFY `account_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `account_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
 
 --
 -- AUTO_INCREMENT for table `admins`
@@ -629,7 +650,7 @@ ALTER TABLE `admins`
 -- AUTO_INCREMENT for table `detail_resep`
 --
 ALTER TABLE `detail_resep`
-  MODIFY `id_detail` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id_detail` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
 
 --
 -- AUTO_INCREMENT for table `dokter`
@@ -653,19 +674,19 @@ ALTER TABLE `jadwal_dokter`
 -- AUTO_INCREMENT for table `log_aktivitas`
 --
 ALTER TABLE `log_aktivitas`
-  MODIFY `id_log` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id_log` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=101;
 
 --
 -- AUTO_INCREMENT for table `mutasi_stok`
 --
 ALTER TABLE `mutasi_stok`
-  MODIFY `id_mutasi` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id_mutasi` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=101;
 
 --
 -- AUTO_INCREMENT for table `notifikasi`
 --
 ALTER TABLE `notifikasi`
-  MODIFY `id_notifikasi` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id_notifikasi` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
 
 --
 -- AUTO_INCREMENT for table `obat`
@@ -677,31 +698,31 @@ ALTER TABLE `obat`
 -- AUTO_INCREMENT for table `otp_verifikasi`
 --
 ALTER TABLE `otp_verifikasi`
-  MODIFY `id_otp` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id_otp` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=101;
 
 --
 -- AUTO_INCREMENT for table `patients`
 --
 ALTER TABLE `patients`
-  MODIFY `id_pasien` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id_pasien` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
 
 --
 -- AUTO_INCREMENT for table `pemeriksaan`
 --
 ALTER TABLE `pemeriksaan`
-  MODIFY `id_pemeriksaan` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id_pemeriksaan` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=101;
 
 --
 -- AUTO_INCREMENT for table `pendaftaran_poli`
 --
 ALTER TABLE `pendaftaran_poli`
-  MODIFY `id_pendaftaran` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id_pendaftaran` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
 
 --
 -- AUTO_INCREMENT for table `pengambilan_obat`
 --
 ALTER TABLE `pengambilan_obat`
-  MODIFY `id_pengambilan` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id_pengambilan` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=101;
 
 --
 -- AUTO_INCREMENT for table `poliklinik`
@@ -713,7 +734,7 @@ ALTER TABLE `poliklinik`
 -- AUTO_INCREMENT for table `resep`
 --
 ALTER TABLE `resep`
-  MODIFY `id_resep` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id_resep` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=101;
 
 --
 -- Constraints for dumped tables

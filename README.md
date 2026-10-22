@@ -6,7 +6,8 @@ MediFlow adalah progressive web app (PWA) untuk antrean poliklinik, rekam medis,
 
 | Peran | Akun demo | Kata sandi | Tugas |
 | --- | --- | --- | --- |
-| Pasien | `budi` | `pasien123` | Daftar poli, check-in, pilih apotek, tunjukkan kode pengambilan |
+| Pasien | `dummy_pasien01` | `pasien123` | Siti Rahma Dummy. Kunjungan 26 Oktober 2026 selesai, obat sudah diambil |
+| Pasien | `dummy_pasien02` | `pasien123` | Andi Pratama Dummy. Antrean 26 Oktober 2026 masih menunggu |
 | Admin | `admin` | `admin123` | Tanda vital, panggil pasien, teruskan resep ke farmasi |
 | Dokter | `dokter01` | `dokter123` | Pemeriksaan, diagnosis, kirim resep |
 | Farmasi | `farmasi01` | `apotek123` | Siapkan obat, cek ulang, serah terima, sesuaikan stok |
@@ -76,11 +77,13 @@ Peran tidak disimpan di `accounts`. Admin, dokter, farmasi, dan pasien masing-ma
 
 Registrasi mengembalikan error jika database atau konfigurasi/provider pengiriman tidak tersedia; aplikasi tidak menganggap OTP terkirim. OTP berlaku 10 menit, percobaan verifikasi dibatasi, dan jumlah pendaftaran dibatasi per alamat IP serta nomor WhatsApp. Provider perlu disiapkan agar sesuai kontrak REST di atas.
 
-`db/schema.sql` adalah dump phpMyAdmin 22 Oktober 2026 beserta data master. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya akun `admin`, `dokter01`, `farmasi01`, dan `budi` bisa masuk: kata sandi demo memakai SHA-256. Akun yang mendaftar sendiri tidak diubah. `scripts\run-application.ps1 dummy` mengisi data uji dari `api/src/mediflow/DemoData.java` dan mengganti isi tabel.
+`db/schema.sql` memuat data dump 22 Oktober 2026 pukul 09:35 (berkas `dump-medicflow_db-202610220935.sql`) dan lembar login dummy, sudah dipetakan ke skema `accounts` / `patients`. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` bisa masuk: kata sandi demo memakai SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; skrip itu mengisi keduanya dengan `pasien123`. Akun yang mendaftar sendiri tidak diubah.
+
+Dump sumber memakai tabel `users` dan `pasien`. Dua baris pasien lama tetap menempel pada akun staf karena demikian adanya di dump: Budi Santoso Edit pada akun `admin`, dan Pasien Uji MedicFlow pada akun `dokter01`. Keduanya tidak punya username pasien sendiri. Nomor BPJS Budi tidak disimpan karena tabel `patients` tidak punya kolom itu. `scripts\run-application.ps1 dummy` mengisi data uji lain dari `api/src/mediflow/DemoData.java` (akun `budi` dan antrean panjang) dan mengganti isi tabel.
 
 Jika MySQL tidak terjangkau, proses Java memakai data uji di memori dan tidak menuliskannya kembali. Jika proses Java berhenti, aplikasi tidak bisa dibuka: layar tidak lagi disimpan di peramban.
 
-Layar masuk tetap empat akun di atas. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di data uji supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
+Perintah `dummy` mengganti database dengan data uji di memori. Akun layar masuk pada data uji itu tetap `budi`, `dokter01`, `admin`, dan `farmasi01`. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di data uji supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
 
 | Antrean | Pasien | Posisi | Yang bisa dicoba |
 | --- | --- | --- | --- |
