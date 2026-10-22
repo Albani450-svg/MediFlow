@@ -12,9 +12,6 @@ import java.util.regex.Pattern;
 
 /** Status kunjungan, masuk, resep, dan stok. Satu salinan untuk tiap jendela. */
 final class VisitStore {
-    /** Mengunci simpan snapshot dan registrasi supaya akun baru tidak tertimpa. */
-    static final Object GERBANG = new Object();
-
     private static final Pattern WA = Pattern.compile("^08\\d{8,12}$");
     private static final Set<String> HARI = Set.of(VisitRules.HARI);
 
@@ -147,51 +144,9 @@ final class VisitStore {
             return;
         }
         try (Connection db = Database.open()) {
-            lengkapkanAkun(db);
             DatabaseSnapshot.simpan(db, basis.kePeta());
         } catch (Exception error) {
             System.err.println("[mediflow] Perubahan belum tersimpan ke medicflow_db: " + ColumnValues.pesan(error));
-        }
-    }
-
-    /** Menyalin users, pasien, OTP, dan jejak dari MySQL ke sesi yang sedang berjalan. */
-    void selaraskanAkun() {
-        if (!"mysql".equals(asal)) {
-            return;
-        }
-        try (Connection db = Database.open()) {
-            DatabaseRecords baru = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
-            ganti(basis.users, baru.users);
-            ganti(basis.pasien, baru.pasien);
-            ganti(basis.otp_verifikasi, baru.otp_verifikasi);
-            ganti(basis.log_aktivitas, baru.log_aktivitas);
-        } catch (Exception error) {
-            System.err.println("[mediflow] Akun baru belum masuk ke sesi: " + ColumnValues.pesan(error));
-        }
-    }
-
-    private void lengkapkanAkun(Connection db) throws Exception {
-        DatabaseRecords baru = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
-        tambahYangBelum(basis.users, baru.users, item -> item.id_user);
-        tambahYangBelum(basis.pasien, baru.pasien, item -> item.id_pasien);
-        tambahYangBelum(basis.otp_verifikasi, baru.otp_verifikasi, item -> item.id_otp);
-        tambahYangBelum(basis.log_aktivitas, baru.log_aktivitas, item -> item.id_log);
-    }
-
-    private static <T> void ganti(List<T> tujuan, List<T> sumber) {
-        tujuan.clear();
-        tujuan.addAll(sumber);
-    }
-
-    private static <T> void tambahYangBelum(List<T> tujuan, List<T> sumber, java.util.function.ToLongFunction<T> id) {
-        Set<Long> ada = new HashSet<>();
-        for (T item : tujuan) {
-            ada.add(id.applyAsLong(item));
-        }
-        for (T item : sumber) {
-            if (ada.add(id.applyAsLong(item))) {
-                tujuan.add(item);
-            }
         }
     }
 
@@ -211,30 +166,10 @@ final class VisitStore {
         return null;
     }
 
-    private Pengguna cariAkunAktif(String username) {
-        for (Pengguna row : basis.users) {
-            if (akunSama(row, username) && row.is_active && "ACTIVE".equals(row.account_status)) {
-                return row;
-            }
-        }
-        return null;
-    }
-
-    private static boolean akunSama(Pengguna row, String akun) {
-        String cari = akun == null ? "" : akun.trim();
-        if (cari.isEmpty()) {
-            return false;
-        }
-        if (row.username != null && row.username.equalsIgnoreCase(cari)) {
-            return true;
-        }
-        return row.email != null && !row.email.isBlank() && row.email.equalsIgnoreCase(cari);
-    }
-
     String nomorAkun(String username) {
         Pengguna user = null;
         for (Pengguna row : basis.users) {
-            if (akunSama(row, username)) {
+            if (row.username.equalsIgnoreCase(username.trim())) {
                 user = row;
                 break;
             }
@@ -251,11 +186,24 @@ final class VisitStore {
     }
 
     Hasil<Void> login(String username, String password, String nomorWa) {
-        Pengguna user = cariAkunAktif(username);
+        Pengguna user = null;
+        for (Pengguna row : basis.users) {
+            if (row.username.equalsIgnoreCase(username.trim()) && row.is_active
+                    && "ACTIVE".equals(row.account_status)) {
+                user = row;
+                break;
+            }
+        }
         if (user == null && "mysql".equals(asal)) {
             try (Connection db = Database.open()) {
                 basis = DatabaseRecords.dari(DatabaseSnapshot.baca(db));
-                user = cariAkunAktif(username);
+                for (Pengguna row : basis.users) {
+                    if (row.username.equalsIgnoreCase(username.trim()) && row.is_active
+                            && "ACTIVE".equals(row.account_status)) {
+                        user = row;
+                        break;
+                    }
+                }
             } catch (Exception error) {
                 System.err.println("[mediflow] Akun baru gagal dimuat: " + ColumnValues.pesan(error));
             }
