@@ -248,6 +248,10 @@ final class VisitStore {
         return null;
     }
 
+    private static boolean peranAkun(String role) {
+        return "pasien".equals(role) || "dokter".equals(role) || "admin".equals(role) || "farmasi".equals(role);
+    }
+
     private static boolean akunSama(Pengguna row, String akun) {
         String cari = akun == null ? "" : akun.trim();
         if (cari.isEmpty()) {
@@ -293,6 +297,9 @@ final class VisitStore {
         }
         if (!PasswordHash.verifikasiPassword(password, user.password_hash)) {
             return gagal("Kata sandi tidak sesuai.");
+        }
+        if (!peranAkun(user.role)) {
+            return gagal("Peran akun belum ditetapkan. Selesaikan pendaftaran atau hubungi admin.");
         }
         if ("pasien".equals(user.role) && nomorWa != null) {
             String nomor = nomorWhatsApp(nomorWa);

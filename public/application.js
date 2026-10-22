@@ -32,8 +32,6 @@
   var registrasi = document.getElementById('registrasi-pasien');
   var bukaRegistrasi = document.getElementById('buka-registrasi');
   var tutupRegistrasi = document.getElementById('tutup-registrasi');
-  var bukaLoginPasien = document.getElementById('buka-login-pasien');
-  var loginPasien = document.getElementById('login-pasien');
   var pesanRegistrasi = document.getElementById('registrasi-pesan');
   var roleRegistrasi = document.getElementById('reg-role');
   var emailRegistrasi = '';
@@ -90,21 +88,14 @@
     roleRegistrasi.addEventListener('change', aturFormRole);
     aturFormRole();
 
-    if (bukaLoginPasien && loginPasien) {
-      bukaLoginPasien.addEventListener('click', function () {
-        loginPasien.hidden = false;
-        bukaLoginPasien.hidden = true;
-        document.getElementById('akun-login').focus();
-      });
-    }
     bukaRegistrasi.addEventListener('click', function () {
       registrasi.hidden = !registrasi.hidden;
-      bukaRegistrasi.textContent = registrasi.hidden ? 'Daftar akun' : 'Tutup pendaftaran';
+      bukaRegistrasi.textContent = registrasi.hidden ? 'Belum punya akun? Daftar' : 'Tutup pendaftaran';
       if (!registrasi.hidden) document.getElementById('reg-nama').focus();
     });
     tutupRegistrasi.addEventListener('click', function () {
       registrasi.hidden = true;
-      bukaRegistrasi.textContent = 'Daftar akun';
+      bukaRegistrasi.textContent = 'Belum punya akun? Daftar';
     });
 
     document.getElementById('kirim-registrasi').addEventListener('click', function (event) {
@@ -179,7 +170,6 @@
         if (pasien) {
           document.getElementById('akun-login').value = emailRegistrasi;
           document.getElementById('sandi-login').value = document.getElementById('reg-password').value;
-          if (bukaLoginPasien) bukaLoginPasien.click();
           tampilkanPesanRegistrasi(body.message + ' Nomor rekam medis: ' + body.data.no_rekam_medis, false);
         } else {
           tampilkanPesanRegistrasi(body.message, false);

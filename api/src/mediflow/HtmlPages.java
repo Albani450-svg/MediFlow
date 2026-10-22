@@ -13,20 +13,6 @@ final class HtmlPages {
             + "<path fill=\"currentColor\" d=\"M12 3a5 5 0 0 0-5 5v2.1c0 .7-.3 1.4-.8 1.9L4.6 13.6A1.5 1.5 0 0 0 5.7 16h12.6a1.5 1.5 0 0 0 1.1-2.4l-1.6-1.6a2.7 2.7 0 0 1-.8-1.9V8a5 5 0 0 0-5-5zm0 18a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 21z\"/>"
             + "</svg>";
 
-    private record Akun(String peran, String username, String sandi, String nama, String judul, String deskripsi,
-                         String ikon) {}
-
-    private static final List<Akun> AKUN = List.of(
-            new Akun("pasien", "dummy_pasien01", "pasien123", "Siti Rahma Dummy • dummy_pasien01", "Pasien",
-                    "Daftar poli, lihat giliran, pilih apotek, dan tunjukkan kode pengambilan", "👤"),
-            new Akun("dokter", "dokter01", "dokter123", "Dr. Ahmad • dokter01", "Dokter",
-                    "Periksa pasien, tulis diagnosis, dan kirim resep ke farmasi", "🩺"),
-            new Akun("admin", "admin", "admin123", "Administrator • admin", "Admin & Perawat",
-                    "Catat tanda vital, panggil pasien, dan selesaikan pembayaran", "🛡️"),
-            new Akun("farmasi", "farmasi01", "apotek123", "Petugas Farmasi • farmasi01", "Farmasi",
-                    "Siapkan obat, cek ulang, lalu serahkan setelah kode pasien cocok", "💊")
-    );
-
     private final VisitStore toko;
     private final List<String[]> toasts = new ArrayList<>();
     private final Set<Long> dikenal = new HashSet<>();
@@ -63,8 +49,6 @@ final class HtmlPages {
     private String pinSerah = "";
     private boolean revealNik;
     private boolean panelTerbuka;
-    private boolean loginPasienTerbuka;
-    private String peran = "pasien";
     private String akunLogin = "";
     private String sandi = "";
     private long obatEdit;
@@ -123,9 +107,7 @@ final class HtmlPages {
         tujuan = halaman == null ? "/" : halaman;
         tarik(form);
         String aksi = teks(form.get("aksi"));
-        if (aksi.startsWith("peran-")) {
-            pilihPeran(aksi.substring("peran-".length()));
-        } else if (aksi.startsWith("hapus-")) {
+        if (aksi.startsWith("hapus-")) {
             VisitStore.Hasil<Void> hasil = toko.hapusObat(angka(aksi.substring("hapus-".length()), 0));
             if (!hasil.ok) {
                 kabar(hasil.error, true);
@@ -340,35 +322,24 @@ final class HtmlPages {
             return;
         }
         akunLogin = akun.trim();
-        if ("pasien".equals(peran)) {
-            loginPasienTerbuka = true;
-        }
-    }
-
-    private void pilihPeran(String nilai) {
-        Akun akun = akun(nilai);
-        peran = akun.peran;
-        if (!"pasien".equals(peran)) {
-            akunLogin = akun.username;
-            sandi = akun.sandi;
-        } else {
-            akunLogin = "";
-            sandi = "";
-            loginPasienTerbuka = false;
-        }
-        tujuan = "/";
     }
 
     private void masukAkun() {
-        Akun akun = akun(peran);
-        String username = !"admin".equals(peran) && !kosong(akunLogin) ? akunLogin : akun.username;
-        VisitStore.Hasil<Void> hasil = toko.login(username, sandi, null);
-        if (!hasil.ok) {
-            kabar(hasil.error, true);
-            loginPasienTerbuka = "pasien".equals(peran);
+        String nama = akunLogin == null ? "" : akunLogin.trim();
+        String kata = sandi == null ? "" : sandi;
+        sandi = "";
+        if (nama.isEmpty() || kata.isEmpty()) {
+            kabar("Isi username dan kata sandi.", true);
             tujuan = "/";
             return;
         }
+        VisitStore.Hasil<Void> hasil = toko.login(nama, kata, null);
+        if (!hasil.ok) {
+            kabar(hasil.error, true);
+            tujuan = "/";
+            return;
+        }
+        akunLogin = "";
         tujuan = "/app";
         notice = "";
         noticeError = false;
@@ -754,7 +725,6 @@ final class HtmlPages {
     }
 
     private String halamanMasuk() {
-        Akun akun = akun(peran);
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"login-screen\"><div class=\"login-panel\"><div class=\"login-brand\">");
         sb.append(logo("login-logo", 56)).append("<h1>MediFlow</h1>");
@@ -765,49 +735,20 @@ final class HtmlPages {
         sb.append("<li><b>4. Ambil</b>Tunjukkan kode di aplikasi ini ke loket.</li>");
         sb.append("</ol></div><form class=\"login-card\" method=\"post\" action=\"/tindakan\">");
         sb.append(sembunyi("sesi", token));
-        sb.append("<h2>Masuk sesuai tugas Anda</h2>");
-        sb.append("<p class=\"sub\">Pilih peran. Setiap akun hanya melihat pekerjaan bagiannya.</p>");
-        for (Akun item : AKUN) {
-            sb.append("<button type=\"submit\" name=\"aksi\" value=\"peran-").append(e(item.peran))
-                    .append("\" class=\"role-option").append(item.peran.equals(peran) ? " selected" : "").append("\">");
-            sb.append("<span class=\"role-icon\">").append(item.ikon).append("</span><span class=\"role-info\"><h3>")
-                    .append(e(item.judul)).append("</h3><p>").append(e(item.deskripsi)).append("</p></span></button>");
-        }
-        if ("pasien".equals(peran)) {
-            sb.append("<button class=\"btn-outline\" id=\"buka-login-pasien\" type=\"button\"")
-                    .append(loginPasienTerbuka ? " hidden" : "")
-                    .append(">Sudah punya akun? Masuk</button>");
-            sb.append("<div class=\"patient-login-fields\" id=\"login-pasien\"")
-                    .append(loginPasienTerbuka ? "" : " hidden").append(">");
-            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"akun-login\">Email / akun pasien</label>");
-            sb.append("<input class=\"input-field\" id=\"akun-login\" name=\"akun\" autocomplete=\"username\" value=\"")
-                    .append(e(akunLogin.isEmpty() ? akun.username : akunLogin)).append("\"></div>");
-            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"sandi-login\">Kata sandi</label>");
-            sb.append("<input class=\"input-field\" id=\"sandi-login\" type=\"password\" name=\"sandi\" autocomplete=\"current-password\"></div>");
-            sb.append("<button class=\"btn-primary\" id=\"btn-login\" type=\"submit\" name=\"aksi\" value=\"masuk\">Masuk ke Sistem →</button>");
-            sb.append("</div>");
-        } else {
-            if ("admin".equals(peran)) {
-                sb.append("<div class=\"form-group\"><label class=\"form-label\">Akun terpilih</label>");
-                sb.append("<input class=\"input-field\" readonly value=\"").append(e(akun.nama)).append("\"></div>");
-            } else {
-                sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"akun-staf\">Email / akun staf</label>");
-                sb.append("<input class=\"input-field\" id=\"akun-staf\" name=\"akun\" autocomplete=\"username\" value=\"")
-                        .append(e(akunLogin)).append("\"></div>");
-            }
-            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"sandi-staf\">Kata sandi</label>");
-            sb.append("<input class=\"input-field\" id=\"sandi-staf\" type=\"password\" name=\"sandi\" autocomplete=\"current-password\" value=\"")
-                    .append(e(sandi)).append("\"></div>");
-        }
+        sb.append("<h2>Masuk ke MediFlow</h2>");
+        sb.append("<p class=\"sub\">Gunakan username dan kata sandi akun Anda. Peran mengikuti akun yang terdaftar.</p>");
+        sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"akun-login\">Username atau email</label>");
+        sb.append("<input class=\"input-field\" id=\"akun-login\" name=\"akun\" autocomplete=\"username\" required value=\"")
+                .append(e(akunLogin)).append("\"></div>");
+        sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"sandi-login\">Kata sandi</label>");
+        sb.append("<input class=\"input-field\" id=\"sandi-login\" type=\"password\" name=\"sandi\" autocomplete=\"current-password\" required></div>");
         if (!notice.isEmpty()) {
             sb.append("<p class=\"notice").append(noticeError ? " error" : "").append("\">").append(e(notice)).append("</p>");
         }
-        if ("pasien".equals(peran)) {
-            sb.append("<button class=\"btn-outline\" id=\"buka-registrasi\" type=\"button\">Daftar akun</button>");
-        }
+        sb.append("<button class=\"btn-primary\" id=\"btn-login\" type=\"submit\" name=\"aksi\" value=\"masuk\">Masuk ke Sistem →</button>");
+        sb.append("<button class=\"btn-outline\" id=\"buka-registrasi\" type=\"button\">Belum punya akun? Daftar</button>");
         sb.append("<p class=\"hint\">").append(e(sumberTeks())).append("</p></form>");
-        if ("pasien".equals(peran)) {
-            sb.append("<section class=\"register-box\" id=\"registrasi-pasien\" hidden>");
+        sb.append("<section class=\"register-box\" id=\"registrasi-pasien\" hidden>");
             sb.append("<h2>Registrasi akun</h2><p class=\"sub\" id=\"reg-keterangan\">Daftar sebagai pasien, dokter, atau apoteker.</p>");
             sb.append("<div class=\"register-step\" id=\"registrasi-langkah-1\">");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-role\">Daftar sebagai</label><select class=\"input-field\" id=\"reg-role\"><option value=\"pasien\">Pasien</option><option value=\"dokter\">Dokter</option><option value=\"farmasi\">Apoteker</option></select></div>");
@@ -843,7 +784,6 @@ final class HtmlPages {
             sb.append("<button class=\"btn-primary\" id=\"lengkapi-registrasi\" type=\"button\">Selesaikan registrasi</button></div>");
             sb.append("<p class=\"notice\" id=\"registrasi-pesan\" role=\"status\" aria-live=\"polite\" hidden></p>");
             sb.append("<button class=\"btn-outline\" id=\"tutup-registrasi\" type=\"button\">Kembali ke masuk</button></section>");
-        }
         sb.append("</div></section>");
         return sb.toString();
     }
@@ -873,23 +813,25 @@ final class HtmlPages {
         if ("alur".equals(tabAktif)) {
             sb.append(alur(role, kunjungan));
         } else if ("data".equals(tabAktif)) {
-            sb.append("dokter".equals(role) ? dataJadwal() : dataObat());
+            if ("dokter".equals(role)) {
+                sb.append(dataJadwal());
+            } else if ("admin".equals(role) || "farmasi".equals(role)) {
+                sb.append(dataObat());
+            } else {
+                sb.append("<section class=\"block wide\"><div class=\"card\"><p class=\"hint\">Data master hanya untuk dokter, admin, dan farmasi.</p></div></section>");
+            }
         } else if ("resep".equals(tabAktif)) {
             sb.append(resep(role, kunjungan));
         } else if ("pasien".equals(role)) {
             sb.append(pasien(kunjungan));
-        } else if (kunjungan == null) {
-            sb.append("<section class=\"block wide\"><div class=\"card\"><p class=\"hint\">")
-                    .append(e(panduan(role, null).tindakan())).append("</p></div></section>");
+        } else if ("dokter".equals(role)) {
+            sb.append(kunjungan == null ? kosongTugas(role) : pemilih(kunjungan) + dokter(kunjungan));
+        } else if ("farmasi".equals(role)) {
+            sb.append(kunjungan == null ? kosongTugas(role) : pemilih(kunjungan) + farmasi(kunjungan));
+        } else if ("admin".equals(role)) {
+            sb.append(kunjungan == null ? kosongTugas(role) : pemilih(kunjungan) + admin(kunjungan));
         } else {
-            sb.append(pemilih(kunjungan));
-            if ("dokter".equals(role)) {
-                sb.append(dokter(kunjungan));
-            } else if ("farmasi".equals(role)) {
-                sb.append(farmasi(kunjungan));
-            } else {
-                sb.append(admin(kunjungan));
-            }
+            sb.append("<section class=\"block wide\"><div class=\"card\"><p class=\"hint\">Akun ini belum memiliki peran. Hubungi admin rumah sakit.</p></div></section>");
         }
         sb.append("</div></main>");
         if ("admin".equals(role)) {
@@ -913,8 +855,10 @@ final class HtmlPages {
             }
         } else if ("farmasi".equals(role)) {
             sub = "Farmasi • " + teks(aktor.nama_lengkap);
-        } else {
+        } else if ("admin".equals(role)) {
             sub = "Petugas • Perawat & Admin";
+        } else {
+            sub = teks(aktor.nama_lengkap);
         }
         String judul = kunjungan == null ? "Belum ada kunjungan" : info.status();
         String kosongTeks = switch (role) {
@@ -1673,17 +1617,23 @@ final class HtmlPages {
         return sb.toString();
     }
 
+    private String kosongTugas(String role) {
+        return "<section class=\"block wide\"><div class=\"card\"><p class=\"hint\">"
+                + e(panduan(role, null).tindakan()) + "</p></div></section>";
+    }
+
     private String nav(String role) {
         String utama = switch (role) {
             case "pasien" -> "Data Saya";
             case "dokter" -> "Form Medis";
             case "farmasi" -> "Farmasi";
-            default -> "Kontrol";
+            case "admin" -> "Kontrol";
+            default -> "Beranda";
         };
         String aktifTab = "pasien".equals(role) && "data".equals(tab) ? "main" : tab;
         StringBuilder sb = new StringBuilder("<nav class=\"bottom-nav\">");
         sb.append(navItem("main", "📝", utama, aktifTab));
-        if (!"pasien".equals(role)) {
+        if ("dokter".equals(role) || "admin".equals(role) || "farmasi".equals(role)) {
             sb.append(navItem("data", "🛠️", "Data", aktifTab));
         }
         sb.append(navItem("alur", "📋", "Alur", aktifTab));
@@ -1755,15 +1705,6 @@ final class HtmlPages {
             return "";
         }
         return tgl(iso) + " " + jam(iso);
-    }
-
-    private Akun akun(String nilai) {
-        for (Akun item : AKUN) {
-            if (item.peran.equals(nilai)) {
-                return item;
-            }
-        }
-        return AKUN.get(0);
     }
 
     private static boolean adaSlot(List<VisitStore.Slot> slot, long id) {
