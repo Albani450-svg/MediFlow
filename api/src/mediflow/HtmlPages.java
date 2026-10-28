@@ -754,12 +754,10 @@ final class HtmlPages {
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-role\">Daftar sebagai</label><select class=\"input-field\" id=\"reg-role\"><option value=\"pasien\">Pasien</option><option value=\"dokter\">Dokter</option><option value=\"farmasi\">Apoteker</option></select></div>");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" id=\"label-nama-registrasi\" for=\"reg-nama\">Nama lengkap</label><input class=\"input-field\" id=\"reg-nama\" maxlength=\"100\" autocomplete=\"name\" required></div>");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-email\">Email</label><input class=\"input-field\" id=\"reg-email\" type=\"email\" maxlength=\"50\" autocomplete=\"email\" required></div>");
-            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-wa\">No. telepon / WhatsApp</label><input class=\"input-field\" id=\"reg-wa\" type=\"tel\" inputmode=\"numeric\" placeholder=\"08xxxxxxxxxx\" autocomplete=\"tel\" required></div>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-wa\">No. telepon</label><input class=\"input-field\" id=\"reg-wa\" type=\"tel\" inputmode=\"numeric\" placeholder=\"08xxxxxxxxxx\" autocomplete=\"tel\" required></div>");
+            sb.append("<p class=\"hint\">Kode WhatsApp belum dipakai. Nomor ini disimpan sebagai kontak.</p>");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-password\">Kata sandi (min. 10 karakter)</label><input class=\"input-field\" id=\"reg-password\" type=\"password\" minlength=\"10\" maxlength=\"200\" autocomplete=\"new-password\" required></div>");
-            sb.append("<button class=\"btn-primary\" id=\"kirim-registrasi\" type=\"button\">Kirim kode WhatsApp</button></div>");
-            sb.append("<div class=\"register-step\" id=\"registrasi-langkah-2\" hidden>");
-            sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-otp\">Kode OTP</label><input class=\"input-field\" id=\"reg-otp\" inputmode=\"numeric\" maxlength=\"6\" autocomplete=\"one-time-code\" required></div>");
-            sb.append("<button class=\"btn-primary\" id=\"verifikasi-registrasi\" type=\"button\">Verifikasi WhatsApp</button></div>");
+            sb.append("<button class=\"btn-primary\" id=\"kirim-registrasi\" type=\"button\">Lanjut</button></div>");
             sb.append("<div class=\"register-step\" id=\"registrasi-langkah-3\" hidden>");
             sb.append("<div id=\"profil-pasien\">");
             sb.append("<div class=\"form-group\"><label class=\"form-label\" for=\"reg-nik\">NIK (16 digit)</label><input class=\"input-field\" id=\"reg-nik\" inputmode=\"numeric\" maxlength=\"16\" required></div>");
@@ -1666,7 +1664,7 @@ final class HtmlPages {
                 + "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
                 + "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">\n"
                 + "<link rel=\"stylesheet\" href=\"/mediflow.css\">\n</head>\n<body>\n"
-                + isi + "\n" + kabar + "\n<script src=\"/application.js\"></script>\n</body>\n</html>\n";
+                + isi + "\n" + kabar + "\n<script src=\"/application.js?v=9\"></script>\n</body>\n</html>\n";
     }
 
     private String kabarJson(Pengguna aktor) {

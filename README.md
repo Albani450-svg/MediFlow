@@ -58,17 +58,11 @@ Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`,
 
 ## Registrasi akun
 
-Di layar masuk, pilih peran Pasien untuk melihat tombol daftar atau masuk yang sebelumnya disembunyikan. Pendaftaran menerima peran Pasien, Dokter, atau Apoteker (disimpan sebagai role `farmasi`). Semua pendaftar memverifikasi nomor WhatsApp dengan OTP dan menetapkan kata sandi minimal 10 karakter. Kata sandi disimpan dengan PBKDF2-HMAC-SHA256; login demo lama tetap didukung.
+Di layar masuk, pilih peran Pasien untuk melihat tombol daftar atau masuk yang sebelumnya disembunyikan. Pendaftaran menerima peran Pasien, Dokter, atau Apoteker (disimpan sebagai role `farmasi`). Pendaftar mengisi nama, email, nomor telepon, dan kata sandi minimal 10 karakter, lalu langsung melengkapi profil. Kode WhatsApp tidak diminta karena pengiriman pesan belum terhubung. Kata sandi disimpan dengan PBKDF2-HMAC-SHA256; login demo lama tetap didukung.
 
-Pasien melengkapi NIK, tanggal lahir, jenis kelamin, dan alamat, lalu menyetujui kebijakan privasi. Nomor BPJS dan SATUSEHAT masih ditanyakan di formulir, tetapi dump saat ini tidak punya kolom untuk keduanya. Nomor telepon diverifikasi lewat OTP. Pasien aktif setelah data lengkap dan mendapat nomor rekam medis. Dokter mengisi nama, SIP, spesialisasi, dan poli; apoteker mengisi nama dan SIPA. Akun staf tetap nonaktif sampai admin menyetujuinya. Nomor izin disimpan di log aktivitas karena tidak ada tabel permohonan. Permohonan yang ditolak tidak bisa dipakai untuk masuk.
+Pasien melengkapi NIK, tanggal lahir, jenis kelamin, dan alamat, lalu menyetujui kebijakan privasi. Nomor BPJS dan SATUSEHAT masih ditanyakan di formulir, tetapi dump saat ini tidak punya kolom untuk keduanya. Nomor telepon disimpan sebagai kontak dan tidak diverifikasi lewat pesan. Pasien aktif setelah data lengkap dan mendapat nomor rekam medis. Dokter mengisi nama, SIP, spesialisasi, dan poli; apoteker mengisi nama dan SIPA. Akun staf tetap nonaktif sampai admin menyetujuinya. Nomor izin disimpan di log aktivitas karena tidak ada tabel permohonan. Permohonan yang ditolak tidak bisa dipakai untuk masuk.
 
-Peran tidak disimpan di `accounts`. Admin, dokter, farmasi, dan pasien masing-masing punya baris di `admins`, `dokter`, `farmasi_staff`, atau `patients`. Sebelum menjalankan aplikasi, atur variabel lingkungan berikut:
-
-- `MEDIFLOW_OTP_SECRET`: rahasia acak minimal 32 karakter untuk menyimpan hash OTP.
-- `MEDIFLOW_DELIVERY_URL`: URL HTTPS endpoint provider WhatsApp yang menerima JSON `{"to":"+62...","message":"..."}`.
-- `MEDIFLOW_DELIVERY_TOKEN`: token Bearer untuk provider tersebut.
-
-Registrasi mengembalikan error jika database atau konfigurasi/provider pengiriman tidak tersedia; aplikasi tidak menganggap OTP terkirim. OTP berlaku 10 menit, percobaan verifikasi dibatasi, dan jumlah pendaftaran dibatasi per alamat IP serta nomor WhatsApp. Provider perlu disiapkan agar sesuai kontrak REST di atas.
+Peran tidak disimpan di `accounts`. Admin, dokter, farmasi, dan pasien masing-masing punya baris di `admins`, `dokter`, `farmasi_staff`, atau `patients`. Jumlah pendaftaran tetap dibatasi per alamat IP dan nomor telepon. `POST /api/auth/register/verify-otp` menjawab bahwa verifikasi kode WhatsApp belum tersedia.
 
 Data yang dipakai aplikasi sudah ada di database `mediflow` (koneksi DBeaver MediFlow). `db/schema.sql` hanya menyimpan salinan dump 22 Oktober 2026 pukul 09:35 (berkas `dump-medicflow_db-202610220935.sql`) dan lembar login dummy, sudah dipetakan ke skema `accounts` / `patients`. Jangan mengimpor berkas itu untuk membuat database baru. `db/sesuaikan-akun-demo.sql` pernah dipasang supaya `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` bisa masuk: kata sandi demo memakai SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; keduanya memakai `pasien123`. Akun yang mendaftar sendiri tidak diubah.
 
@@ -130,7 +124,7 @@ Kode Java ada di `api/src/mediflow/`:
 | Berkas | Isi |
 | --- | --- |
 | `ApplicationServer.java` | HTTP di 127.0.0.1:8088, halaman dan jalur data |
-| `PatientRegistration.java` | Registrasi pasien, OTP, rate limit, dan pengiriman OTP via REST |
+| `PatientRegistration.java` | Registrasi akun tanpa kode WhatsApp, plus batas pendaftaran |
 | `WebSite.java` | Sesi per jendela dan berkas statis |
 | `HtmlPages.java` | HTML masuk dan beranda |
 | `VisitStore.java` | Masuk, kunjungan, resep, dan stok |
@@ -158,7 +152,7 @@ API tetap tersedia di proses yang sama:
 | GET, POST | `/api/poliklinik`, `/api/dokter`, `/api/jadwal_dokter`, `/api/obat`, `/api/pendaftaran_poli`, `/api/pemeriksaan`, `/api/resep`, `/api/detail_resep`, `/api/notifikasi`, `/api/otp_verifikasi`, `/api/pengambilan_obat`, `/api/mutasi_stok`, `/api/log_aktivitas` |
 | GET, PUT, PATCH, DELETE | jalur tersebut ditambah `/{id}` |
 | POST | `/api/auth/register` — nama, email, `no_telepon`, password, dan role `pasien`, `dokter`, atau `farmasi` |
-| POST | `/api/auth/register/verify-otp` — email dan `kode_otp` |
+| POST | `/api/auth/register/verify-otp` — dinonaktifkan; kode WhatsApp belum terhubung |
 | POST | `/api/auth/register/profile` — pasien: email, NIK, nomor BPJS, `tanggal_lahir`, `jenis_kelamin`, alamat, `nomor_satusehat`, dan `persetujuan_privasi`; staf: email, `license_number`, `specialization`, dan `id_poli` untuk dokter |
 
 `GET /` dengan header `Accept: application/json` juga mengembalikan objek kesehatan itu. Permintaan peramban biasa mendapat halaman HTML.

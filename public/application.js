@@ -75,7 +75,7 @@
     function aturFormRole() {
       var pasien = roleRegistrasi.value === 'pasien';
       document.getElementById('reg-keterangan').textContent = pasien
-        ? 'Akun pasien aktif setelah WhatsApp terverifikasi dan profil lengkap.'
+        ? 'Akun pasien aktif setelah profil lengkap. Kode WhatsApp tidak diperlukan.'
         : 'Akun staf menunggu pemeriksaan dokumen dan persetujuan admin.';
       document.getElementById('profil-pasien').hidden = !pasien;
       document.getElementById('profil-staf').hidden = pasien;
@@ -101,31 +101,18 @@
     document.getElementById('kirim-registrasi').addEventListener('click', function (event) {
       var data = dataJson('');
       if (!data.nama_lengkap || !data.email || !data.no_telepon || data.password.length < 10) {
-        tampilkanPesanRegistrasi('Lengkapi nama, email, nomor WhatsApp, dan kata sandi minimal 10 karakter.', true);
+        tampilkanPesanRegistrasi('Lengkapi nama, email, nomor telepon, dan kata sandi minimal 10 karakter.', true);
         return;
       }
       emailRegistrasi = data.email;
       kirimRegistrasi('/api/auth/register', data, event.currentTarget, function (body) {
         document.getElementById('registrasi-langkah-1').hidden = true;
-        document.getElementById('registrasi-langkah-2').hidden = false;
-        tampilkanPesanRegistrasi(body.message, false);
-        document.getElementById('reg-otp').focus();
-      });
-    });
-
-    document.getElementById('verifikasi-registrasi').addEventListener('click', function (event) {
-      var kode = document.getElementById('reg-otp').value.trim();
-      if (!/^[0-9]{6}$/.test(kode)) {
-        tampilkanPesanRegistrasi('Masukkan kode OTP enam digit.', true);
-        return;
-      }
-      kirimRegistrasi('/api/auth/register/verify-otp', {
-        email: emailRegistrasi,
-        kode_otp: kode
-      }, event.currentTarget, function (body) {
-        document.getElementById('registrasi-langkah-2').hidden = true;
         document.getElementById('registrasi-langkah-3').hidden = false;
         tampilkanPesanRegistrasi(body.message, false);
+        var fokus = roleRegistrasi.value === 'pasien'
+          ? document.getElementById('reg-nik')
+          : document.getElementById('reg-izin');
+        if (fokus) fokus.focus();
       });
     });
 

@@ -1,9 +1,5 @@
 package mediflow;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Connection;
@@ -11,7 +7,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -19,59 +14,50 @@ import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
-/** Registrasi pasien publik. Role akun selalu ditetapkan di server. */
+/** Registrasi akun. Kode WhatsApp tidak dipakai karena pengiriman belum terhubung. */
 final class PatientRegistration {
     record Result(int status, Map<String, Object> body) {}
-
-    private static final HttpClient HTTP = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
 
     private PatientRegistration() {}
 
     static Result daftar(Map<String, Object> request, String ip) {
         String nama = teks(request.get("nama_lengkap")).trim();
         String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
-        String wa = teks(request.get("no_telepon")).replaceAll("\\s+", "");
+        String telepon = teks(request.get("no_telepon")).replaceAll("\\s+", "");
         String password = teks(request.get("password"));
         String role = teks(request.get("role")).trim().toLowerCase(java.util.Locale.ROOT);
         if (role.isBlank()) {
             role = "pasien";
         }
-        String secret = env("MEDIFLOW_OTP_SECRET");
-        String deliveryUrl = env("MEDIFLOW_DELIVERY_URL");
-        String deliveryToken = env("MEDIFLOW_DELIVERY_TOKEN");
 
         if (!("pasien".equals(role) || "dokter".equals(role) || "farmasi".equals(role))
                 || nama.isBlank() || nama.length() > 100
                 || email.length() > 50
                 || !email.matches("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,50}@[A-Za-z0-9.-]{1,40}\\.[A-Za-z]{2,}$")
-                || !wa.matches("^08[0-9]{8,12}$")
+                || !telepon.matches("^08[0-9]{8,12}$")
                 || password.length() < 10 || password.length() > 200) {
-            return gagal(422, "Nama, email, nomor WhatsApp, atau kata sandi tidak memenuhi syarat.");
-        }
-        if (secret.length() < 32 || deliveryToken.isBlank() || !endpointAman(deliveryUrl)) {
-            return gagal(503, "Pengiriman OTP belum dikonfigurasi dengan aman. Hubungi administrator.");
+            return gagal(422, "Nama, email, nomor telepon, atau kata sandi tidak memenuhi syarat.");
         }
 
-        String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
         try (Connection db = Database.open()) {
             if (dibatasi(db, "register-ip", ip, 10, 3600)
-                    || dibatasi(db, "register-wa", wa, 3, 3600)) {
-                return gagal(429, "Batas pendaftaran atau pengiriman kode per jam tercapai.");
+                    || dibatasi(db, "register-phone", telepon, 3, 3600)) {
+                return gagal(429, "Batas pendaftaran per jam tercapai.");
             }
             if (ada(db, "SELECT 1 FROM accounts a WHERE a.email = ? OR a.username = ? "
                             + "OR EXISTS (SELECT 1 FROM patients p WHERE p.no_telepon = ?) "
                             + "OR EXISTS (SELECT 1 FROM admins ad WHERE ad.phone = ?) "
                             + "OR EXISTS (SELECT 1 FROM farmasi_staff f WHERE f.phone = ?) "
                             + "OR EXISTS (SELECT 1 FROM otp_verifikasi o JOIN accounts b ON b.account_id = o.account_id "
-                            + "WHERE o.tujuan = ? AND b.is_active = 0) LIMIT 1",
-                    email, email, wa, wa, wa, wa)) {
-                return gagal(409, "Email atau nomor WhatsApp sudah digunakan.");
+                            + "WHERE o.tujuan = ? AND b.is_active = 0) "
+                            + "OR EXISTS (SELECT 1 FROM log_aktivitas l JOIN accounts c ON c.account_id = l.account_id "
+                            + "WHERE l.aktivitas = 'REGISTER_PENDING' AND c.is_active = 0 "
+                            + "AND l.id_log = (SELECT MAX(x.id_log) FROM log_aktivitas x "
+                            + "WHERE x.account_id = c.account_id AND x.aktivitas = 'REGISTER_PENDING') "
+                            + "AND SUBSTRING_INDEX(l.keterangan, '\\n', -1) = ?) LIMIT 1",
+                    email, email, telepon, telepon, telepon, telepon, telepon)) {
+                return gagal(409, "Email atau nomor telepon sudah digunakan.");
             }
 
             boolean autoCommit = db.getAutoCommit();
@@ -92,22 +78,13 @@ final class PatientRegistration {
                         userId = keys.getLong(1);
                     }
                 }
-                try (PreparedStatement ps = db.prepareStatement(
-                        "INSERT INTO otp_verifikasi (account_id, kode_otp, tujuan, expired_at, attempt, created_at) "
-                                + "VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), 0, UTC_TIMESTAMP())")) {
-                    ps.setLong(1, userId);
-                    ps.setString(2, hashOtp(otp, secret));
-                    ps.setString(3, wa);
-                    ps.executeUpdate();
-                }
-                catat(db, userId, "REGISTER_PENDING", "accounts", userId, role + "\n" + nama + "\n" + wa);
-                kirimOtp(deliveryUrl, deliveryToken, wa, otp);
+                catat(db, userId, "REGISTER_PENDING", "accounts", userId, role + "\n" + nama + "\n" + telepon);
                 db.commit();
-                return baik(202, "Kode verifikasi dikirim ke WhatsApp yang didaftarkan.");
+                return baik(200, "Akun tersimpan. Lengkapi profil Anda.");
             } catch (Exception error) {
                 db.rollback();
                 System.err.println("[mediflow] Registrasi pasien gagal: " + error.getClass().getSimpleName());
-                return gagal(503, "Registrasi belum dapat diproses. Periksa layanan pesan atau coba kembali.");
+                return gagal(503, "Registrasi belum dapat diproses. Coba kembali.");
             } finally {
                 db.setAutoCommit(autoCommit);
             }
@@ -118,88 +95,7 @@ final class PatientRegistration {
     }
 
     static Result verifikasi(Map<String, Object> request, String ip) {
-        String email = teks(request.get("email")).trim().toLowerCase(java.util.Locale.ROOT);
-        String kode = teks(request.get("kode_otp")).trim();
-        String secret = env("MEDIFLOW_OTP_SECRET");
-        if (!emailAman(email) || !kode.matches("^[0-9]{6}$")) {
-            return gagal(422, "Email atau kode OTP tidak valid.");
-        }
-        if (secret.length() < 32) {
-            return gagal(503, "Verifikasi OTP belum dikonfigurasi.");
-        }
-        try (Connection db = Database.open()) {
-            if (dibatasi(db, "verify-ip", ip, 20, 3600)
-                    || dibatasi(db, "verify-email", email, 10, 3600)) {
-                return gagal(429, "Terlalu banyak percobaan verifikasi. Coba kembali nanti.");
-            }
-            db.setAutoCommit(false);
-            try {
-                long userId;
-                try (PreparedStatement ps = db.prepareStatement(
-                        "SELECT account_id FROM accounts WHERE email = ? AND is_active = 0 "
-                                + "AND NOT EXISTS (SELECT 1 FROM patients p WHERE p.account_id = accounts.account_id) "
-                                + "AND NOT EXISTS (SELECT 1 FROM dokter d WHERE d.account_id = accounts.account_id) "
-                                + "AND NOT EXISTS (SELECT 1 FROM farmasi_staff f WHERE f.account_id = accounts.account_id) "
-                                + "FOR UPDATE")) {
-                    ps.setString(1, email);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next()) {
-                            db.rollback();
-                            return gagal(400, "Akun pendaftaran tidak ditemukan atau sudah aktif.");
-                        }
-                        userId = rs.getLong(1);
-                    }
-                }
-
-                long otpId;
-                String hash;
-                int attempts;
-                try (PreparedStatement ps = db.prepareStatement(
-                        "SELECT id_otp, kode_otp, attempt FROM otp_verifikasi "
-                                + "WHERE account_id = ? AND verified_at IS NULL AND expired_at > UTC_TIMESTAMP() "
-                                + "ORDER BY id_otp DESC LIMIT 1 FOR UPDATE")) {
-                    ps.setLong(1, userId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next()) {
-                            db.rollback();
-                            return gagal(400, "Kode OTP kedaluwarsa. Daftar kembali untuk meminta kode baru.");
-                        }
-                        otpId = rs.getLong("id_otp");
-                        hash = rs.getString("kode_otp");
-                        attempts = rs.getInt("attempt");
-                    }
-                }
-                if (attempts >= 5) {
-                    db.rollback();
-                    return gagal(429, "Batas percobaan kode OTP tercapai.");
-                }
-                try (PreparedStatement ps = db.prepareStatement(
-                        "UPDATE otp_verifikasi SET attempt = attempt + 1 WHERE id_otp = ?")) {
-                    ps.setLong(1, otpId);
-                    ps.executeUpdate();
-                }
-                if (!MessageDigest.isEqual(hash.getBytes(StandardCharsets.US_ASCII),
-                        hashOtp(kode, secret).getBytes(StandardCharsets.US_ASCII))) {
-                    db.commit();
-                    return gagal(400, "Kode OTP tidak cocok.");
-                }
-                try (PreparedStatement ps = db.prepareStatement(
-                        "UPDATE otp_verifikasi SET verified_at = UTC_TIMESTAMP() WHERE id_otp = ?")) {
-                    ps.setLong(1, otpId);
-                    ps.executeUpdate();
-                }
-                db.commit();
-                return baik(200, "Nomor WhatsApp terverifikasi. Lengkapi profil pasien.");
-            } catch (SQLException error) {
-                db.rollback();
-                throw error;
-            } finally {
-                db.setAutoCommit(true);
-            }
-        } catch (SQLException error) {
-            System.err.println("[mediflow] Verifikasi OTP gagal: " + ColumnValues.pesan(error));
-            return gagal(503, "Verifikasi OTP tidak dapat diproses.");
-        }
+        return gagal(410, "Verifikasi kode WhatsApp belum tersedia. Lanjutkan dengan melengkapi profil.");
     }
 
     static Result lengkapiProfil(Map<String, Object> request) {
@@ -229,8 +125,8 @@ final class PatientRegistration {
                 String role;
                 try (PreparedStatement ps = db.prepareStatement(
                         "SELECT a.account_id FROM accounts a WHERE a.email = ? AND a.is_active = 0 "
-                                + "AND EXISTS (SELECT 1 FROM otp_verifikasi o WHERE o.account_id = a.account_id "
-                                + "AND o.verified_at IS NOT NULL) "
+                                + "AND EXISTS (SELECT 1 FROM log_aktivitas l WHERE l.account_id = a.account_id "
+                                + "AND l.aktivitas = 'REGISTER_PENDING') "
                                 + "AND NOT EXISTS (SELECT 1 FROM patients p WHERE p.account_id = a.account_id) "
                                 + "AND NOT EXISTS (SELECT 1 FROM dokter d WHERE d.account_id = a.account_id) "
                                 + "AND NOT EXISTS (SELECT 1 FROM farmasi_staff f WHERE f.account_id = a.account_id) "
@@ -239,7 +135,7 @@ final class PatientRegistration {
                     try (ResultSet rs = ps.executeQuery()) {
                         if (!rs.next()) {
                             db.rollback();
-                            return gagal(403, "Verifikasi WhatsApp wajib diselesaikan sebelum melengkapi profil.");
+                            return gagal(403, "Akun pendaftaran tidak ditemukan. Daftar kembali.");
                         }
                         userId = rs.getLong("account_id");
                     }
@@ -613,39 +509,6 @@ final class PatientRegistration {
         }
     }
 
-    private static void kirimOtp(String url, String token, String wa, String kode) throws Exception {
-        Map<String, String> payload = Map.of(
-                "to", "+62" + wa.substring(1),
-                "message", "Kode verifikasi MediFlow Anda: " + kode + ". Kode berlaku 10 menit."
-        );
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + token)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofByteArray(JsonConverter.MAPPER.writeValueAsBytes(payload)))
-                .build();
-        HttpResponse<Void> response = HTTP.send(request, HttpResponse.BodyHandlers.discarding());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IllegalStateException("Provider REST menolak pesan (HTTP " + response.statusCode() + ").");
-        }
-    }
-
-    private static String hashOtp(String kode, String secret) {
-        try {
-            Mac hmac = Mac.getInstance("HmacSHA256");
-            hmac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] bytes = hmac.doFinal(kode.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                hex.append(String.format("%02x", b));
-            }
-            return hex.toString();
-        } catch (java.security.GeneralSecurityException error) {
-            throw new IllegalStateException("Hash OTP tidak tersedia.", error);
-        }
-    }
-
     private static String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
@@ -668,16 +531,6 @@ final class PatientRegistration {
         }
     }
 
-    private static boolean endpointAman(String value) {
-        try {
-            URI uri = URI.create(value);
-            return "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null
-                    && uri.getUserInfo() == null && uri.getFragment() == null;
-        } catch (IllegalArgumentException error) {
-            return false;
-        }
-    }
-
     private static boolean emailAman(String email) {
         return email != null && email.length() <= 50
                 && email.matches("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,50}@[A-Za-z0-9.-]{1,40}\\.[A-Za-z]{2,}$");
@@ -685,11 +538,6 @@ final class PatientRegistration {
 
     private static String teks(Object value) {
         return value == null ? "" : String.valueOf(value);
-    }
-
-    private static String env(String key) {
-        String value = System.getenv(key);
-        return value == null ? "" : value.trim();
     }
 
     private static Result baik(int status, String message) {
