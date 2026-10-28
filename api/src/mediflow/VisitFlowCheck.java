@@ -84,6 +84,12 @@ public final class VisitFlowCheck {
         sama(siti.tahap, 9);
         sama(siti.pinKeluarga, "482913");
         sama(siti.resep.kode_qr_unik, "MF-SITI-SIAP");
+        String gambarQr = QrGambar.svg("DUMMY-QR-MEDICFLOW-100");
+        benar(gambarQr.contains("<svg") && gambarQr.contains("<path fill=\"#0f172a\"") && gambarQr.contains("h1v1h-1z"));
+        benar(gambarQr.contains("viewBox=\"0 0 "));
+        benar(QrGambar.svg("").isEmpty());
+        benar(QrGambar.svg(null).isEmpty());
+        benar(QrGambar.svg("A".repeat(4000)).isEmpty());
         benar(toko.kunjungan().stream().anyMatch(row -> row.tahap == 7 && "Dewi Lestari".equals(row.pasienNama)));
 
         for (Pengguna user : awal.users) {

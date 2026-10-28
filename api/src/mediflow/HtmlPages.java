@@ -1116,7 +1116,8 @@ final class HtmlPages {
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block\"><div class=\"section-title\">Kode pengambilan<span>")
                 .append(kunjungan.qrDipakai ? "Sudah dipakai" : "Sekali pakai").append("</span></div>");
-        sb.append("<div class=\"card qr-box\"><p class=\"mono qr-kode\">").append(e(resep.kode_qr_unik)).append("</p>");
+        sb.append("<div class=\"card qr-box\">").append(QrGambar.svg(resep.kode_qr_unik));
+        sb.append("<p class=\"mono qr-kode\">").append(e(resep.kode_qr_unik)).append("</p>");
         sb.append("<p class=\"hint\">").append(e(petunjuk)).append("</p></div></section>");
         return sb.toString();
     }
@@ -1663,7 +1664,7 @@ final class HtmlPages {
                 + "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
                 + "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
                 + "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">\n"
-                + "<link rel=\"stylesheet\" href=\"/mediflow.css\">\n</head>\n<body>\n"
+                + "<link rel=\"stylesheet\" href=\"/mediflow.css?v=10\">\n</head>\n<body>\n"
                 + isi + "\n" + kabar + "\n<script src=\"/application.js?v=9\"></script>\n</body>\n</html>\n";
     }
 
