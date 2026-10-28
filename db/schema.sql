@@ -23,7 +23,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `medicflow_db`
+-- Database: `mediflow` (sudah ada di DBeaver, localhost:3306). Jangan buat database baru.
 --
 
 -- --------------------------------------------------------

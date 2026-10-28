@@ -5,7 +5,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/** Koneksi medicflow_db. Variabel lingkungan: MEDIFLOW_DB_HOST, USER, PASSWORD, NAME, PORT. */
+/** Koneksi mediflow. Variabel lingkungan: MEDIFLOW_DB_HOST, USER, PASSWORD, NAME, PORT. */
 final class Database {
     private Database() {}
 
@@ -13,7 +13,7 @@ final class Database {
         String host = env("MEDIFLOW_DB_HOST", "127.0.0.1");
         String user = env("MEDIFLOW_DB_USER", "root");
         String password = env("MEDIFLOW_DB_PASSWORD", "");
-        String name = env("MEDIFLOW_DB_NAME", "medicflow_db");
+        String name = env("MEDIFLOW_DB_NAME", "mediflow");
         String port = env("MEDIFLOW_DB_PORT", "3306");
         String url = "jdbc:mysql://" + host + ":" + port + "/" + name
                 + "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"

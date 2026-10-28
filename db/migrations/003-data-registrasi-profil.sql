@@ -5,7 +5,8 @@
 -- Simpanan layar menyisipkan ulang baris pasien tanpa kolom itu, jadi nilainya kembali kosong
 -- sampai katalog tabel memakainya.
 --
--- mysql -u root medicflow_db < db/migrations/003-data-registrasi-profil.sql
+-- Jangan dijalankan pada database mediflow yang sudah ada di DBeaver.
+-- mysql -u root mediflow < db/migrations/003-data-registrasi-profil.sql
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 

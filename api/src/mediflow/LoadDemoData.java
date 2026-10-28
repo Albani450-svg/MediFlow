@@ -2,7 +2,7 @@ package mediflow;
 
 import java.sql.Connection;
 
-/** Mengganti isi medicflow_db dengan data uji hari ini. */
+/** Mengganti isi mediflow dengan data uji hari ini. */
 public final class LoadDemoData {
     private LoadDemoData() {}
 

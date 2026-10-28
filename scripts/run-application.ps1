@@ -52,7 +52,7 @@ switch ($Perintah) {
         exit $LASTEXITCODE
     }
     'dummy' {
-        Write-Host '[mediflow] Mengganti isi 17 tabel medicflow_db dengan data uji.'
+        Write-Host '[mediflow] Mengganti isi 17 tabel mediflow dengan data uji.'
         & $java -cp 'api\out;api\lib\*' mediflow.LoadDemoData
         exit $LASTEXITCODE
     }

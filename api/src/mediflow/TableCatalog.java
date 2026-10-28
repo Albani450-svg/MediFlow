@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Bentuk tabel medicflow_db dan aturan validasi CRUD. */
+/** Bentuk tabel mediflow dan aturan validasi CRUD. */
 final class TableCatalog {
     enum Type { INT, BOOL, DEC, STR, DT, DATE, TIME }
 

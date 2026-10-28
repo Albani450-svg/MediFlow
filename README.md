@@ -40,18 +40,11 @@ Memilih apotek luar pada langkah 6 menutup kunjungan tanpa mengurangi stok rumah
 Perlu JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP untuk MySQL. `java` harus ada di PATH, atau tunjuk folder JDK lewat `JAVA_HOME`. Node.js tidak dipakai.
 
 ```powershell
-# 1. Buat database kosong, impor dump, lalu pasang kata sandi demo.
-#    phpMyAdmin, atau:
-#    mysql -u root -e "DROP DATABASE IF EXISTS medicflow_db; CREATE DATABASE medicflow_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-#    mysql -u root medicflow_db < db/schema.sql
-#    mysql -u root medicflow_db < db/sesuaikan-akun-demo.sql
-#    Migrasi 001-003 hanya untuk skema lama (users/pasien). Jangan dijalankan pada dump ini.
+# Database yang dipakai sudah ada: mediflow di localhost:3306
+# (koneksi DBeaver bernama MediFlow). Jangan buat database baru,
+# dan jangan impor db/schema.sql atau migrasi 001-003 ke server ini.
 
-# 2. Isi data uji: antrean hari ini, resep, stok, dan jadwal semua poli.
-#    Perintah ini mengganti isi 17 tabel medicflow_db.
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1 dummy
-
-# 3. Jalankan aplikasi. Peramban terbuka ke halaman masuk.
+# Jalankan aplikasi. Peramban terbuka ke halaman masuk.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1
 ```
 
@@ -61,7 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1
 
 `npm run dev`, `npm run check`, dan `npm run dummy` memanggil skrip yang sama. Server hanya menjawab dari komputer ini (`127.0.0.1`).
 
-Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`.
+Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `mediflow`, port `3306`. Itu database yang sama dengan koneksi DBeaver MediFlow. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`. Jangan membuat database baru.
 
 ## Registrasi akun
 
@@ -77,7 +70,7 @@ Peran tidak disimpan di `accounts`. Admin, dokter, farmasi, dan pasien masing-ma
 
 Registrasi mengembalikan error jika database atau konfigurasi/provider pengiriman tidak tersedia; aplikasi tidak menganggap OTP terkirim. OTP berlaku 10 menit, percobaan verifikasi dibatasi, dan jumlah pendaftaran dibatasi per alamat IP serta nomor WhatsApp. Provider perlu disiapkan agar sesuai kontrak REST di atas.
 
-`db/schema.sql` memuat data dump 22 Oktober 2026 pukul 09:35 (berkas `dump-medicflow_db-202610220935.sql`) dan lembar login dummy, sudah dipetakan ke skema `accounts` / `patients`. `db/sesuaikan-akun-demo.sql` dijalankan sesudahnya supaya `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` bisa masuk: kata sandi demo memakai SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; skrip itu mengisi keduanya dengan `pasien123`. Akun yang mendaftar sendiri tidak diubah.
+Data yang dipakai aplikasi sudah ada di database `mediflow` (koneksi DBeaver MediFlow). `db/schema.sql` hanya menyimpan salinan dump 22 Oktober 2026 pukul 09:35 (berkas `dump-medicflow_db-202610220935.sql`) dan lembar login dummy, sudah dipetakan ke skema `accounts` / `patients`. Jangan mengimpor berkas itu untuk membuat database baru. `db/sesuaikan-akun-demo.sql` pernah dipasang supaya `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` bisa masuk: kata sandi demo memakai SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; keduanya memakai `pasien123`. Akun yang mendaftar sendiri tidak diubah.
 
 Dump sumber memakai tabel `users` dan `pasien`. Dua baris pasien lama tetap menempel pada akun staf karena demikian adanya di dump: Budi Santoso Edit pada akun `admin`, dan Pasien Uji MedicFlow pada akun `dokter01`. Keduanya tidak punya username pasien sendiri. Nomor BPJS Budi tidak disimpan karena tabel `patients` tidak punya kolom itu. `scripts\run-application.ps1 dummy` mengisi data uji lain dari `api/src/mediflow/DemoData.java` (akun `budi` dan antrean panjang) dan mengganti isi tabel.
 
@@ -107,7 +100,7 @@ Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini.
 | --- | --- |
 | `scripts\run-application.ps1` | Menyusun sumber Java, lalu menjalankan aplikasi di port 8088 |
 | `scripts\run-application.ps1 periksa` | Pemeriksaan alur di memori: jadwal ganda, stok habis, kode yang dipakai ulang, dan catatan stok |
-| `scripts\run-application.ps1 dummy` | Mengisi `medicflow_db` dengan data uji hari ini. Isi tabel yang ada diganti |
+| `scripts\run-application.ps1 dummy` | Mengisi `mediflow` dengan data uji hari ini. Isi tabel yang ada diganti |
 
 Di Visual Studio Code, **Run application** membuka Edge ke http://127.0.0.1:8088 dan menyalakan server yang sama.
 
@@ -124,7 +117,7 @@ MediFlow/
   scripts/
     run-application.ps1    menyusun dan menjalankan aplikasi Java
   db/
-    schema.sql             skema medicflow_db
+    schema.sql             skema mediflow (dokumentasi; jangan buat database baru)
     migrations/            perubahan skema untuk database yang sudah ada
     sesuaikan-akun-demo.sql  akun demo setelah impor dump
   api/

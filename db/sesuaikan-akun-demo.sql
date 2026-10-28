@@ -1,4 +1,4 @@
--- Kata sandi demo setelah impor dump medicflow_db.
+-- Kata sandi demo setelah impor dump ke database mediflow yang sudah ada.
 -- Dump menyimpan placeholder $2y$10$abcdefghijklmnopqrstuv, bukan hash yang bisa dipakai masuk.
 -- Nilai di bawah adalah SHA-256. Akun lain, termasuk pasien yang mendaftar sendiri, tidak diubah.
 -- Lembar login dummy menandai dummy_pasien01 dan dummy_pasien02 sebagai belum disetel.

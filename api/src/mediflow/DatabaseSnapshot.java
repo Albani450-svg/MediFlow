@@ -11,7 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Baca dan tulis seluruh medicflow_db dalam bentuk yang dipakai PWA. */
+/** Baca dan tulis seluruh mediflow dalam bentuk yang dipakai PWA. */
 final class DatabaseSnapshot {
     private DatabaseSnapshot() {}
 

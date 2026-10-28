@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Salinan tabel medicflow_db yang diubah aplikasi. */
+/** Salinan tabel mediflow yang diubah aplikasi. */
 final class DatabaseRecords {
     final List<Pengguna> users = new ArrayList<>();
     final List<Pasien> pasien = new ArrayList<>();
