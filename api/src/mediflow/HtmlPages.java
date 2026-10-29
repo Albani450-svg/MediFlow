@@ -373,7 +373,7 @@ final class HtmlPages {
     }
 
     private void daftarBaru() {
-        List<VisitStore.Slot> slot = toko.slotHari(VisitRules.tanggalIso(), idPoli);
+        List<VisitStore.Slot> slot = toko.slotBerikut(idPoli);
         VisitStore.Slot pilih = null;
         for (VisitStore.Slot item : slot) {
             if (item.jadwal.id_jadwal == idJadwal) {
@@ -384,7 +384,7 @@ final class HtmlPages {
             pilih = slot.get(0);
         }
         if (pilih == null) {
-            kabar("Tidak ada jadwal untuk poli ini hari ini.", true);
+            kabar("Tidak ada jadwal dokter untuk poliklinik ini.", true);
             return;
         }
         VisitStore.Hasil<Long> hasil = toko.daftar(pilih.jadwal.id_jadwal, keluhanBaru, catatanDaftar);
@@ -987,7 +987,7 @@ final class HtmlPages {
     }
 
     private String formDaftar(boolean tampil, boolean adaJalan) {
-        List<VisitStore.Slot> slot = toko.slotHari(VisitRules.tanggalIso(), idPoli);
+        List<VisitStore.Slot> slot = toko.slotBerikut(idPoli);
         StringBuilder sb = new StringBuilder();
         sb.append("<section class=\"block wide\"><div class=\"section-title\">");
         sb.append(adaJalan ? "Kunjungan lain" : "Daftar poliklinik");
@@ -1014,10 +1014,20 @@ final class HtmlPages {
             Pasien pasien = toko.pasienAktif();
             sb.append("<input class=\"input-field\" readonly value=\"")
                     .append(e(ScreenText.labelPenjamin(pasien == null ? null : pasien.nomor_bpjs))).append("\"></div></div>");
-            sb.append("<div class=\"form-group\"><label class=\"form-label\">Dokter dan jadwal hari ini</label>");
+            sb.append("<div class=\"form-group\"><label class=\"form-label\">Dokter dan jadwal</label>");
             sb.append("<select class=\"select-field\" name=\"id_jadwal\" onchange=\"this.form.querySelector('[name=aksi]').value='jadwal'; this.form.submit()\">");
+            if (slot.isEmpty()) {
+                sb.append("<option value=\"\" selected disabled>Tidak ada jadwal dokter untuk poliklinik ini</option>");
+            }
             for (VisitStore.Slot item : slot) {
-                String label = item.dokterNama + ", " + item.spesialisasi + " • " + VisitRules.jamPendek(item.jadwal.jam_mulai)
+                String siapa = item.dokterNama;
+                if (!item.spesialisasi.isBlank()) {
+                    siapa += ", " + item.spesialisasi;
+                }
+                String kapan = item.tanggal.equals(VisitRules.tanggalIso())
+                        ? "hari ini"
+                        : item.jadwal.hari + " " + VisitRules.tanggalPendek(item.tanggal);
+                String label = siapa + " • " + kapan + " • " + VisitRules.jamPendek(item.jadwal.jam_mulai)
                         + "–" + VisitRules.jamPendek(item.jadwal.jam_selesai) + " • sisa " + item.sisa;
                 sb.append(opsi(Long.toString(item.jadwal.id_jadwal), Long.toString(terpilih), label));
             }
@@ -1028,7 +1038,7 @@ final class HtmlPages {
             sb.append("<input class=\"input-field\" name=\"catatan_daftar\" placeholder=\"Contoh: Alergi penisilin. Kosongkan jika tidak ada.\" value=\"")
                     .append(e(catatanDaftar)).append("\"></div>");
             sb.append("<button class=\"btn-primary\" id=\"btn-daftar\" type=\"submit\" name=\"aksi\" value=\"daftar\">Daftar dan dapatkan nomor antrean</button>");
-            sb.append("<p class=\"hint\">Penjamin mengikuti nomor BPJS di profil. Satu pasien tidak bisa mengambil jadwal yang sama dua kali. Poli tanpa jadwal hari ini tidak muncul.</p>");
+            sb.append("<p class=\"hint\">Penjamin mengikuti nomor BPJS di profil. Satu pasien tidak bisa mengambil jadwal yang sama dua kali. Bila hari ini tidak ada praktik, pilihan menunjuk hari praktik berikutnya.</p>");
             sb.append("</form>");
         }
         sb.append("</section>");

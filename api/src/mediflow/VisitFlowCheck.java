@@ -23,6 +23,26 @@ public final class VisitFlowCheck {
         benar(PasswordHash.verifikasiAkun("dummy_pasien01", "pasien123", placeholder));
         benar(!PasswordHash.verifikasiAkun("admin", "pasien123", placeholder));
         benar(!PasswordHash.verifikasiAkun("tamu", "admin123", placeholder));
+        VisitStore praktik = VisitStore.memori();
+        boolean adaSenin = false;
+        for (Jadwal row : praktik.snapshot().jadwal_dokter) {
+            if (!adaSenin && row.id_dokter == 1) {
+                row.hari = "Senin";
+                row.is_active = true;
+                adaSenin = true;
+            } else {
+                row.is_active = false;
+            }
+        }
+        benar(adaSenin);
+        List<VisitStore.Slot> pilihan = praktik.slotBerikut(1L);
+        sama(pilihan.size(), 1);
+        sama(pilihan.get(0).jadwal.hari, "Senin");
+        sama(pilihan.get(0).tanggal, VisitRules.tanggalPraktik("Senin"));
+        benar(pilihan.get(0).dokterNama != null && !pilihan.get(0).dokterNama.isBlank());
+        if (!"Senin".equals(VisitRules.namaHari(VisitRules.tanggalIso()))) {
+            benar(praktik.slotHari(VisitRules.tanggalIso(), 1L).isEmpty());
+        }
         String hashKuat = PasswordHash.hashPasswordLambat("kata-sandi-registrasi");
         benar(PasswordHash.verifikasiPassword("kata-sandi-registrasi", hashKuat));
         benar(!PasswordHash.verifikasiPassword("kata-sandi-salah", hashKuat));

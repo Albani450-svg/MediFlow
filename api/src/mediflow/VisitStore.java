@@ -78,6 +78,7 @@ final class VisitStore {
 
     static final class Slot {
         Jadwal jadwal;
+        String tanggal;
         String dokterNama;
         String spesialisasi;
         String poliNama;
@@ -464,12 +465,32 @@ final class VisitStore {
             }
             Slot slot = new Slot();
             slot.jadwal = jadwal;
+            slot.tanggal = tanggal;
             slot.dokterNama = dokter.nama_dokter;
             slot.spesialisasi = dokter.spesialisasi == null ? "" : dokter.spesialisasi;
             slot.poliNama = poli.nama_poli;
             slot.sisa = Math.max(0, jadwal.kuota_maksimal - terpakai);
             hasil.add(slot);
         }
+        return hasil;
+    }
+
+    /** Jadwal aktif poli ini pada hari praktik berikutnya. Hari ini ikut bila namanya sama. */
+    List<Slot> slotBerikut(Long idPoli) {
+        List<Slot> hasil = new ArrayList<>();
+        for (Jadwal jadwal : basis.jadwal_dokter) {
+            if (!jadwal.is_active) {
+                continue;
+            }
+            String tanggal = VisitRules.tanggalPraktik(jadwal.hari);
+            if (tanggal == null) {
+                continue;
+            }
+            hasil.addAll(slotHari(tanggal, idPoli).stream()
+                    .filter(item -> item.jadwal.id_jadwal == jadwal.id_jadwal)
+                    .toList());
+        }
+        hasil.sort(Comparator.comparing((Slot item) -> item.tanggal).thenComparing(item -> item.jadwal.jam_mulai));
         return hasil;
     }
 
@@ -577,9 +598,9 @@ final class VisitStore {
         if (jadwal == null) {
             return gagal("Jadwal tidak ditemukan.");
         }
-        String tanggal = VisitRules.tanggalIso();
-        if (!jadwal.hari.equals(VisitRules.namaHari(tanggal))) {
-            return gagal("Jadwal itu bukan untuk hari ini.");
+        String tanggal = VisitRules.tanggalPraktik(jadwal.hari);
+        if (tanggal == null || !jadwal.hari.equals(VisitRules.namaHari(tanggal))) {
+            return gagal("Hari pada jadwal dokter tidak dikenali.");
         }
         if (VisitRules.bentrokPasien(basis.pendaftaran_poli, pasien.id_pasien, jadwal.id_jadwal, tanggal)) {
             return gagal("Anda sudah terdaftar pada jadwal dan tanggal yang sama.");

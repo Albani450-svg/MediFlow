@@ -13,6 +13,7 @@ import java.util.List;
 final class VisitRules {
     static final ZoneId ZONA = ZoneId.of("Asia/Jakarta");
     static final String[] HARI = {"Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"};
+    private static final String[] BULAN = {"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"};
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
             .withZone(ZoneOffset.UTC);
 
@@ -40,6 +41,26 @@ final class VisitRules {
 
     static String namaHari(String tanggal) {
         return namaHari(LocalDate.parse(tanggal));
+    }
+
+    /** Tanggal praktik berikutnya, termasuk hari ini bila nama harinya sama. */
+    static String tanggalPraktik(String hari) {
+        if (hari == null || hari.isBlank()) {
+            return null;
+        }
+        LocalDate dari = LocalDate.now(ZONA);
+        for (int i = 0; i < 7; i++) {
+            LocalDate calon = dari.plusDays(i);
+            if (hari.equals(namaHari(calon))) {
+                return calon.toString();
+            }
+        }
+        return null;
+    }
+
+    static String tanggalPendek(String iso) {
+        LocalDate tanggal = LocalDate.parse(iso);
+        return tanggal.getDayOfMonth() + " " + BULAN[tanggal.getMonthValue() - 1];
     }
 
     static String jamPendek(String jam) {
