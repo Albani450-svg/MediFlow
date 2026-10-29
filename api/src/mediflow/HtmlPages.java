@@ -1685,7 +1685,7 @@ final class HtmlPages {
 
     private String sumberTeks() {
         if ("mysql".equals(toko.sumber())) {
-            return "Akun, poli, jadwal, dan stok obat mengikuti database mediflow.";
+            return "Akun, poli, jadwal, dan stok obat mengikuti database medicflow_db.";
         }
         return "Database belum terjangkau. Data demo dipakai selama server ini berjalan.";
     }

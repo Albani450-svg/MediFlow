@@ -16,6 +16,9 @@ final class DatabaseSnapshot {
     private DatabaseSnapshot() {}
 
     static Map<String, List<Map<String, Object>>> baca(Connection db) throws SQLException {
+        if (SkemaFisik.warisan(db)) {
+            return SkemaFisik.baca(db);
+        }
         Map<String, List<Map<String, Object>>> hasil = new LinkedHashMap<>();
         for (TableCatalog.Table tabel : TableCatalog.TABLES) {
             List<Map<String, Object>> baris = new ArrayList<>();
@@ -42,6 +45,10 @@ final class DatabaseSnapshot {
         }
         if (((List<?>) data.get("accounts")).isEmpty()) {
             throw new IllegalStateException("Akun kosong, penyimpanan dibatalkan.");
+        }
+        if (SkemaFisik.warisan(db)) {
+            SkemaFisik.simpan(db, data);
+            return;
         }
 
         boolean otomatis = db.getAutoCommit();
@@ -104,7 +111,7 @@ final class DatabaseSnapshot {
         }
     }
 
-    private static void ikat(PreparedStatement ps, int indeks, Object nilai, TableCatalog.Col kolom) throws SQLException {
+    static void ikat(PreparedStatement ps, int indeks, Object nilai, TableCatalog.Col kolom) throws SQLException {
         boolean kosong = nilai == null || (nilai instanceof String teks && teks.isEmpty());
         if (kosong) {
             if (kolom.type() == TableCatalog.Type.BOOL) {

@@ -42,7 +42,7 @@ Memilih apotek luar pada langkah 6 menutup kunjungan tanpa mengurangi stok rumah
 Perlu JDK 17 atau lebih baru, dan MySQL atau MariaDB. Pengembangan di sini memakai XAMPP untuk MySQL. `java` harus ada di PATH, atau tunjuk folder JDK lewat `JAVA_HOME`. Node.js tidak dipakai.
 
 ```powershell
-# Database yang dipakai sudah ada: mediflow di localhost:3306
+# Database yang dipakai sudah ada: medicflow_db di localhost:3306
 # (koneksi DBeaver bernama MediFlow). Jangan buat database baru,
 # dan jangan impor db/schema.sql atau migrasi 001-003 ke server ini.
 
@@ -58,19 +58,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-application.ps1
 
 `npm run dev`, `npm run start`, `npm run api`, `npm run check`, dan `npm run dummy` memanggil skrip yang sama. Server hanya menjawab dari komputer ini (`127.0.0.1`).
 
-Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `mediflow`, port `3306`. Itu database yang sama dengan koneksi DBeaver MediFlow. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`. Jangan membuat database baru.
+Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`, user `root`, kata sandi kosong, database `medicflow_db`, port `3306`. Itu database yang terbuka di koneksi DBeaver MediFlow. Nilai itu bisa ditimpa dengan `MEDIFLOW_DB_HOST`, `MEDIFLOW_DB_USER`, `MEDIFLOW_DB_PASSWORD`, `MEDIFLOW_DB_NAME`, dan `MEDIFLOW_DB_PORT`. Jangan membuat database baru.
 
 ## Registrasi akun
 
 Layar masuk berisi username atau email, kata sandi, dan tombol **Belum punya akun? Daftar**. Tidak ada pemilih peran di form masuk. Pendaftaran dimulai dengan pilihan Pasien, Dokter, atau Apoteker (disimpan sebagai role `farmasi`). Pendaftar mengisi nama, email (paling panjang 50 karakter, sekaligus menjadi username), nomor telepon yang diawali `08`, dan kata sandi minimal 10 karakter, lalu menekan Lanjut dan melengkapi profil. Kode WhatsApp tidak diminta karena pengiriman pesan belum terhubung. Nomor telepon disimpan sebagai kontak. Kata sandi baru disimpan dengan PBKDF2-HMAC-SHA256; akun demo lama tetap memakai SHA-256.
 
-Pasien melengkapi NIK, tanggal lahir, jenis kelamin, dan alamat, lalu menyetujui kebijakan privasi. Nomor BPJS dan SATUSEHAT masih ditanyakan di formulir, tetapi `patients` tidak punya kolom untuk keduanya. Pasien aktif setelah data lengkap dan mendapat nomor rekam medis. Dokter menambah SIP, spesialisasi, dan poli; apoteker menambah SIPA. Akun staf tetap nonaktif sampai admin menyetujuinya. Nomor izin disimpan di log aktivitas karena tidak ada tabel permohonan. Permohonan yang ditolak tidak bisa dipakai untuk masuk.
+Pasien melengkapi NIK, tanggal lahir, jenis kelamin, dan alamat, lalu menyetujui kebijakan privasi. Nomor BPJS disimpan di `pasien.nomor_bpjs`. Nomor SATUSEHAT ditanyakan, tetapi tidak ada kolom untuk menyimpannya. Nomor rekam medis dikembalikan ke layar; tabel `pasien` tidak punya kolom itu. Dokter menambah SIP, spesialisasi, dan poli; apoteker menambah SIPA. Akun staf tetap nonaktif sampai admin menyetujuinya. Nomor izin disimpan di log aktivitas karena tidak ada tabel permohonan. Permohonan yang ditolak tidak bisa dipakai untuk masuk.
 
-Peran tidak disimpan di `accounts`. Admin, dokter, farmasi, dan pasien masing-masing punya baris di `admins`, `dokter`, `farmasi_staff`, atau `patients`. Jumlah pendaftaran tetap dibatasi per alamat IP dan nomor telepon di `auth_rate_limits`. `POST /api/auth/register/verify-otp` menjawab HTTP 410: verifikasi kode WhatsApp belum tersedia.
+Di `medicflow_db`, peran ada di kolom `users.role`. Profil pasien ada di tabel `pasien` (`id_user`), dokter di `dokter.id_user`, dan nomor BPJS di `pasien.nomor_bpjs`. Tidak ada tabel `accounts`, `patients`, `admins`, atau `farmasi_staff`. Aplikasi memetakan nama itu di memori. Jumlah pendaftaran tetap dibatasi per alamat IP dan nomor telepon di `auth_rate_limits`. `POST /api/auth/register/verify-otp` menjawab HTTP 410: verifikasi kode WhatsApp belum tersedia.
 
-Data yang dipakai aplikasi sudah ada di database `mediflow` (koneksi DBeaver MediFlow). `db/schema.sql` hanya menyimpan salinan dump 22 Oktober 2026 pukul 09:35 (berkas `dump-medicflow_db-202610220935.sql`) dan lembar login dummy, sudah dipetakan ke skema `accounts` / `patients`. Jangan mengimpor berkas itu untuk membuat database baru. `db/sesuaikan-akun-demo.sql` pernah dipasang supaya `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` bisa masuk: kata sandi demo memakai SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; keduanya memakai `pasien123`. Akun yang mendaftar sendiri tidak diubah.
+Data yang dipakai aplikasi sudah ada di database `medicflow_db` (koneksi DBeaver MediFlow). `db/schema.sql` hanya menyimpan salinan yang sudah dipetakan ke skema `accounts` / `patients`. Jangan mengimpor berkas itu. `db/sesuaikan-akun-demo.sql` mengganti hash placeholder `$2y$10$abcdefghijklmnopqrstuv` pada `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` menjadi SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; keduanya memakai `pasien123`. Akun yang mendaftar sendiri tidak diubah.
 
-Dump sumber memakai tabel `users` dan `pasien`. Dua baris pasien lama tetap menempel pada akun staf karena demikian adanya di dump: Budi Santoso Edit pada akun `admin`, dan Pasien Uji MedicFlow pada akun `dokter01`. Keduanya tidak punya username pasien sendiri. Nomor BPJS Budi tidak disimpan karena tabel `patients` tidak punya kolom itu. `scripts\run-application.ps1 dummy` mengisi data uji lain dari `api/src/mediflow/DemoData.java` (akun `budi` dan antrean panjang) dan mengganti 17 tabel katalog. `auth_rate_limits` tidak ikut.
+Dua baris pasien lama tetap menempel pada akun staf: Budi Santoso Edit pada akun `admin`, dan Pasien Uji MedicFlow pada akun `dokter01`. Keduanya tidak punya username pasien sendiri. `scripts\run-application.ps1 dummy` mengisi data uji lain dari `api/src/mediflow/DemoData.java` (akun `budi` dan antrean panjang) dan mengganti tabel kunjungan. `auth_rate_limits` tidak ikut.
 
 Jika MySQL tidak terjangkau, proses Java memakai data uji di memori dan tidak menuliskannya kembali. Jika proses Java berhenti, aplikasi tidak bisa dibuka: layar tidak lagi disimpan di peramban.
 
@@ -98,7 +98,7 @@ Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini.
 | --- | --- |
 | `scripts\run-application.ps1` | Menyusun sumber Java, lalu menjalankan aplikasi di port 8088 |
 | `scripts\run-application.ps1 periksa` | Pemeriksaan alur di memori: jadwal ganda, stok habis, kode yang dipakai ulang, gambar QR, dan catatan stok |
-| `scripts\run-application.ps1 dummy` | Mengganti 17 tabel katalog di `mediflow` dengan data uji hari ini. `auth_rate_limits` tidak ikut |
+| `scripts\run-application.ps1 dummy` | Mengganti tabel kunjungan di `medicflow_db` dengan data uji hari ini. `auth_rate_limits` tidak ikut |
 | `scripts\run-application.ps1 henti` | Menghentikan proses Java aplikasi di port 8088 |
 
 Di Visual Studio Code, **Run application** membuka Edge ke http://127.0.0.1:8088 dan menyalakan server yang sama.
@@ -116,8 +116,8 @@ MediFlow/
   scripts/
     run-application.ps1    menyusun dan menjalankan aplikasi Java
   db/
-    schema.sql             salinan skema mediflow (dokumentasi; jangan impor)
-    migrations/            skema lama `users`/`pasien`; jangan dijalankan pada mediflow
+    schema.sql             salinan skema accounts (dokumentasi; jangan impor)
+    migrations/            jangan dijalankan pada medicflow_db
     sesuaikan-akun-demo.sql  sudah dipasang; jangan dijalankan ulang pada database yang hidup
   api/
     lib/                   jar Jackson dan MySQL, tanpa Maven

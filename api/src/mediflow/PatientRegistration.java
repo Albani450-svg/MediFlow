@@ -45,7 +45,19 @@ final class PatientRegistration {
                     || dibatasi(db, "register-phone", telepon, 3, 3600)) {
                 return gagal(429, "Batas pendaftaran per jam tercapai.");
             }
-            if (ada(db, "SELECT 1 FROM accounts a WHERE a.email = ? OR a.username = ? "
+            boolean warisan = SkemaFisik.warisan(db);
+            if (warisan
+                    ? ada(db, "SELECT 1 FROM users u WHERE u.username = ? OR u.no_telepon = ? "
+                            + "OR EXISTS (SELECT 1 FROM pasien p WHERE p.no_telepon = ?) "
+                            + "OR EXISTS (SELECT 1 FROM otp_verifikasi o JOIN users b ON b.id_user = o.id_user "
+                            + "WHERE o.tujuan = ? AND b.is_active = 0) "
+                            + "OR EXISTS (SELECT 1 FROM log_aktivitas l JOIN users c ON c.id_user = l.id_user "
+                            + "WHERE l.aktivitas = 'REGISTER_PENDING' AND c.is_active = 0 "
+                            + "AND l.id_log = (SELECT MAX(x.id_log) FROM log_aktivitas x "
+                            + "WHERE x.id_user = c.id_user AND x.aktivitas = 'REGISTER_PENDING') "
+                            + "AND SUBSTRING_INDEX(l.keterangan, '\\n', -1) = ?) LIMIT 1",
+                    email, telepon, telepon, telepon, telepon)
+                    : ada(db, "SELECT 1 FROM accounts a WHERE a.email = ? OR a.username = ? "
                             + "OR EXISTS (SELECT 1 FROM patients p WHERE p.no_telepon = ?) "
                             + "OR EXISTS (SELECT 1 FROM admins ad WHERE ad.phone = ?) "
                             + "OR EXISTS (SELECT 1 FROM farmasi_staff f WHERE f.phone = ?) "
@@ -64,12 +76,20 @@ final class PatientRegistration {
             db.setAutoCommit(false);
             try {
                 long userId;
-                try (PreparedStatement ps = db.prepareStatement(
-                        "INSERT INTO accounts (username, email, password_hash, is_active) VALUES (?, ?, ?, 0)",
-                        Statement.RETURN_GENERATED_KEYS)) {
+                String sqlAkun = warisan
+                        ? "INSERT INTO users (username, password_hash, role, nama_lengkap, no_telepon, is_active) VALUES (?, ?, ?, ?, ?, 0)"
+                        : "INSERT INTO accounts (username, email, password_hash, is_active) VALUES (?, ?, ?, 0)";
+                try (PreparedStatement ps = db.prepareStatement(sqlAkun, Statement.RETURN_GENERATED_KEYS)) {
                     ps.setString(1, email);
-                    ps.setString(2, email);
-                    ps.setString(3, PasswordHash.hashPasswordLambat(password));
+                    if (warisan) {
+                        ps.setString(2, PasswordHash.hashPasswordLambat(password));
+                        ps.setString(3, role);
+                        ps.setString(4, nama);
+                        ps.setString(5, telepon);
+                    } else {
+                        ps.setString(2, email);
+                        ps.setString(3, PasswordHash.hashPasswordLambat(password));
+                    }
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) {
@@ -117,6 +137,10 @@ final class PatientRegistration {
         }
 
         try (Connection db = Database.open()) {
+            if (SkemaFisik.warisan(db)) {
+                return lengkapiWarisan(db, email, nik, tanggal, jk, bpjs, alamat, persetujuanPrivasi,
+                        licenseNumber, specialization, poliId);
+            }
             db.setAutoCommit(false);
             try {
                 long userId;
@@ -253,7 +277,18 @@ final class PatientRegistration {
 
     static List<Map<String, Object>> stafMenunggu() throws SQLException {
         List<Map<String, Object>> result = new ArrayList<>();
-        String dokterSql = "SELECT l.id_log AS id_request, a.account_id AS id_user, d.nama_dokter AS nama_lengkap, "
+        try (Connection db = Database.open()) {
+            boolean warisan = SkemaFisik.warisan(db);
+        String dokterSql = warisan
+                ? "SELECT l.id_log AS id_request, u.id_user, d.nama_dokter AS nama_lengkap, "
+                + "u.username AS email, l.keterangan, d.spesialisasi AS specialization, d.id_poli, p.nama_poli, l.created_at "
+                + "FROM dokter d JOIN users u ON u.id_user = d.id_user "
+                + "JOIN log_aktivitas l ON l.id_user = d.id_user AND l.aktivitas = 'REGISTER_STAFF' "
+                + "AND l.id_log = (SELECT MAX(x.id_log) FROM log_aktivitas x "
+                + "WHERE x.id_user = d.id_user AND x.aktivitas = 'REGISTER_STAFF') "
+                + "LEFT JOIN poliklinik p ON p.id_poli = d.id_poli "
+                + "WHERE d.is_active = 0 AND u.is_active = 0 ORDER BY l.id_log"
+                : "SELECT l.id_log AS id_request, a.account_id AS id_user, d.nama_dokter AS nama_lengkap, "
                 + "a.email, l.keterangan, d.spesialisasi AS specialization, d.id_poli, p.nama_poli, l.created_at "
                 + "FROM dokter d JOIN accounts a ON a.account_id = d.account_id "
                 + "JOIN log_aktivitas l ON l.account_id = d.account_id AND l.aktivitas = 'REGISTER_STAFF' "
@@ -261,14 +296,20 @@ final class PatientRegistration {
                 + "WHERE x.account_id = d.account_id AND x.aktivitas = 'REGISTER_STAFF') "
                 + "LEFT JOIN poliklinik p ON p.id_poli = d.id_poli "
                 + "WHERE d.is_active = 0 AND a.is_active = 0 ORDER BY l.id_log";
-        String farmasiSql = "SELECT l.id_log AS id_request, a.account_id AS id_user, f.nama AS nama_lengkap, "
+        String farmasiSql = warisan
+                ? "SELECT l.id_log AS id_request, u.id_user, u.nama_lengkap, u.username AS email, "
+                + "l.keterangan, u.no_telepon AS phone, l.created_at "
+                + "FROM users u JOIN log_aktivitas l ON l.id_user = u.id_user AND l.aktivitas = 'REGISTER_STAFF' "
+                + "AND l.id_log = (SELECT MAX(x.id_log) FROM log_aktivitas x "
+                + "WHERE x.id_user = u.id_user AND x.aktivitas = 'REGISTER_STAFF') "
+                + "WHERE u.role = 'farmasi' AND u.is_active = 0 ORDER BY l.id_log"
+                : "SELECT l.id_log AS id_request, a.account_id AS id_user, f.nama AS nama_lengkap, "
                 + "a.email, l.keterangan, f.phone, l.created_at "
                 + "FROM farmasi_staff f JOIN accounts a ON a.account_id = f.account_id "
                 + "JOIN log_aktivitas l ON l.account_id = f.account_id AND l.aktivitas = 'REGISTER_STAFF' "
                 + "AND l.id_log = (SELECT MAX(x.id_log) FROM log_aktivitas x "
                 + "WHERE x.account_id = f.account_id AND x.aktivitas = 'REGISTER_STAFF') "
                 + "WHERE a.is_active = 0 ORDER BY l.id_log";
-        try (Connection db = Database.open()) {
             try (PreparedStatement ps = db.prepareStatement(dokterSql); ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String[] keterangan = barisKeterangan(rs.getString("keterangan"), 4);
@@ -314,6 +355,9 @@ final class PatientRegistration {
             return gagal(422, "Permohonan atau akun admin tidak valid.");
         }
         try (Connection db = Database.open()) {
+            if (SkemaFisik.warisan(db)) {
+                return tinjauWarisan(db, requestId, adminId, setuju);
+            }
             db.setAutoCommit(false);
             try {
                 long userId;
@@ -419,22 +463,286 @@ final class PatientRegistration {
         }
     }
 
+    private static Result lengkapiWarisan(
+            Connection db, String email, String nik, String tanggal, String jk, String bpjs, String alamat,
+            boolean persetujuanPrivasi, String licenseNumber, String specialization, long poliId
+    ) {
+        boolean otomatis = true;
+        try {
+            otomatis = db.getAutoCommit();
+            db.setAutoCommit(false);
+            long userId;
+            try (PreparedStatement ps = db.prepareStatement(
+                    "SELECT u.id_user FROM users u WHERE u.username = ? AND u.is_active = 0 "
+                            + "AND EXISTS (SELECT 1 FROM log_aktivitas l WHERE l.id_user = u.id_user "
+                            + "AND l.aktivitas = 'REGISTER_PENDING') "
+                            + "AND NOT EXISTS (SELECT 1 FROM pasien p WHERE p.id_user = u.id_user) "
+                            + "AND NOT EXISTS (SELECT 1 FROM dokter d WHERE d.id_user = u.id_user) "
+                            + "AND NOT EXISTS (SELECT 1 FROM log_aktivitas s WHERE s.id_user = u.id_user "
+                            + "AND s.aktivitas = 'REGISTER_STAFF') FOR UPDATE")) {
+                ps.setString(1, email);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        db.rollback();
+                        return gagal(403, "Akun pendaftaran tidak ditemukan. Daftar kembali.");
+                    }
+                    userId = rs.getLong("id_user");
+                }
+            }
+            String[] pending = bacaPending(db, userId);
+            if (pending == null) {
+                db.rollback();
+                return gagal(403, "Data pendaftaran tidak ditemukan. Daftar kembali.");
+            }
+            String role = pending[0];
+            String nama = pending[1];
+            String wa = pending[2];
+            if ("dokter".equals(role) || "farmasi".equals(role)) {
+                String jenisIzin = "dokter".equals(role) ? "SIP" : "SIPA";
+                if (!licenseNumber.matches("^[A-Za-z0-9./-]{4,50}$")
+                        || ("dokter".equals(role) && (specialization.isBlank() || specialization.length() > 100
+                        || poliId <= 0 || !ada(db,
+                                "SELECT 1 FROM poliklinik WHERE id_poli = ? AND is_active = 1 LIMIT 1",
+                                Long.toString(poliId))))
+                        || ("farmasi".equals(role) && !specialization.isBlank())) {
+                    db.rollback();
+                    return gagal(422, "Nomor " + jenisIzin + " atau data staf tidak valid.");
+                }
+                if ("dokter".equals(role)) {
+                    try (PreparedStatement ps = db.prepareStatement(
+                            "INSERT INTO dokter (id_user, id_poli, nama_dokter, spesialisasi, is_active) "
+                                    + "VALUES (?, ?, ?, ?, 0)")) {
+                        ps.setLong(1, userId);
+                        ps.setLong(2, poliId);
+                        ps.setString(3, nama);
+                        ps.setString(4, specialization);
+                        ps.executeUpdate();
+                    }
+                }
+                try (PreparedStatement ps = db.prepareStatement(
+                        "UPDATE users SET nama_lengkap = ?, no_telepon = ?, updated_at = UTC_TIMESTAMP() "
+                                + "WHERE id_user = ?")) {
+                    ps.setString(1, nama);
+                    ps.setString(2, wa);
+                    ps.setLong(3, userId);
+                    ps.executeUpdate();
+                }
+                catat(db, userId, "REGISTER_STAFF", "dokter".equals(role) ? "dokter" : "users", userId,
+                        licenseNumber + "\n" + specialization + "\n" + ("dokter".equals(role) ? poliId : 0) + "\n" + wa);
+                db.commit();
+                return baik(202, "Permohonan akun staf terkirim. Akun menunggu pemeriksaan dan persetujuan admin.");
+            }
+            if (!nik.matches("^[0-9]{16}$") || !tanggalValid(tanggal)
+                    || !("L".equals(jk) || "P".equals(jk)) || alamat.isBlank()
+                    || !persetujuanPrivasi) {
+                db.rollback();
+                return gagal(422, "NIK, tanggal lahir, jenis kelamin, alamat, dan persetujuan kebijakan privasi wajib diisi.");
+            }
+            if (ada(db, "SELECT 1 FROM pasien WHERE nik = ? LIMIT 1", nik)) {
+                db.rollback();
+                return gagal(409, "NIK sudah terdaftar.");
+            }
+            long pasienId;
+            try (PreparedStatement ps = db.prepareStatement(
+                    "INSERT INTO pasien (id_user, nik, nomor_bpjs, nama_lengkap, tanggal_lahir, "
+                            + "jenis_kelamin, alamat, no_telepon, terdaftar_satusehat) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                ps.setLong(1, userId);
+                ps.setString(2, nik);
+                if (bpjs.isBlank()) {
+                    ps.setNull(3, java.sql.Types.VARCHAR);
+                } else {
+                    ps.setString(3, bpjs);
+                }
+                ps.setString(4, nama);
+                ps.setString(5, tanggal);
+                ps.setString(6, jk);
+                ps.setString(7, alamat);
+                ps.setString(8, wa);
+                ps.executeUpdate();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    if (!keys.next()) {
+                        throw new SQLException("ID profil pasien tidak terbentuk.");
+                    }
+                    pasienId = keys.getLong(1);
+                }
+            }
+            try (PreparedStatement ps = db.prepareStatement(
+                    "UPDATE users SET is_active = 1, nama_lengkap = ?, no_telepon = ?, updated_at = UTC_TIMESTAMP() "
+                            + "WHERE id_user = ? AND is_active = 0")) {
+                ps.setString(1, nama);
+                ps.setString(2, wa);
+                ps.setLong(3, userId);
+                if (ps.executeUpdate() != 1) {
+                    throw new SQLException("Status akun pasien tidak dapat diaktifkan.");
+                }
+            }
+            catat(db, userId, "REGISTER_PATIENT", "pasien", pasienId, "Pasien menyelesaikan registrasi mandiri");
+            db.commit();
+            String nomorRekamMedis = "RM" + LocalDate.now(ZoneOffset.UTC).getYear()
+                    + String.format("%08d", pasienId);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("id_pasien", pasienId);
+            data.put("no_rekam_medis", nomorRekamMedis);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("status", true);
+            body.put("message", "Registrasi pasien selesai. Silakan masuk menggunakan email dan kata sandi.");
+            body.put("data", data);
+            return new Result(201, body);
+        } catch (SQLException error) {
+            try {
+                db.rollback();
+            } catch (SQLException diabaikan) {
+                // Transaksi sudah batal.
+            }
+            System.err.println("[mediflow] Profil pasien gagal disimpan: " + ColumnValues.pesan(error));
+            return gagal(503, "Profil pasien tidak dapat disimpan. Periksa database lalu coba kembali.");
+        } finally {
+            try {
+                db.setAutoCommit(otomatis);
+            } catch (SQLException diabaikan) {
+                // Koneksi ditutup oleh pemanggil.
+            }
+        }
+    }
+
+    private static Result tinjauWarisan(Connection db, long requestId, long adminId, boolean setuju) {
+        boolean otomatis = true;
+        try {
+            otomatis = db.getAutoCommit();
+            db.setAutoCommit(false);
+            long userId;
+            try (PreparedStatement ps = db.prepareStatement(
+                    "SELECT id_user FROM log_aktivitas WHERE id_log = ? AND aktivitas = 'REGISTER_STAFF' FOR UPDATE")) {
+                ps.setLong(1, requestId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        db.rollback();
+                        return gagal(404, "Permohonan staf tidak ditemukan atau sudah ditinjau.");
+                    }
+                    userId = rs.getLong("id_user");
+                }
+            }
+            if (!ada(db, "SELECT 1 FROM users WHERE id_user = ? AND is_active = 0", Long.toString(userId))) {
+                db.rollback();
+                return gagal(404, "Permohonan staf tidak ditemukan atau sudah ditinjau.");
+            }
+            String role = null;
+            String nama = null;
+            long poliTersimpan = 0;
+            try (PreparedStatement ps = db.prepareStatement(
+                    "SELECT nama_dokter, id_poli FROM dokter WHERE id_user = ? AND is_active = 0 FOR UPDATE")) {
+                ps.setLong(1, userId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        role = "dokter";
+                        nama = rs.getString("nama_dokter");
+                        poliTersimpan = rs.getLong("id_poli");
+                    }
+                }
+            }
+            if (role == null) {
+                try (PreparedStatement ps = db.prepareStatement(
+                        "SELECT nama_lengkap FROM users WHERE id_user = ? AND role = 'farmasi' AND is_active = 0 FOR UPDATE")) {
+                    ps.setLong(1, userId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            role = "farmasi";
+                            nama = rs.getString("nama_lengkap");
+                        }
+                    }
+                }
+            }
+            if (role == null) {
+                db.rollback();
+                return gagal(404, "Permohonan staf tidak ditemukan atau sudah ditinjau.");
+            }
+            if (setuju && "dokter".equals(role)) {
+                if (poliTersimpan <= 0 || !ada(db, "SELECT 1 FROM poliklinik WHERE id_poli = ? AND is_active = 1", Long.toString(poliTersimpan))) {
+                    db.rollback();
+                    return gagal(422, "Poli permohonan dokter tidak tersedia atau tidak aktif.");
+                }
+                try (PreparedStatement ps = db.prepareStatement(
+                        "UPDATE dokter SET is_active = 1, updated_at = UTC_TIMESTAMP() WHERE id_user = ? AND is_active = 0")) {
+                    ps.setLong(1, userId);
+                    if (ps.executeUpdate() != 1) {
+                        throw new SQLException("Profil dokter tidak dapat diaktifkan.");
+                    }
+                }
+            }
+            if (setuju) {
+                try (PreparedStatement ps = db.prepareStatement(
+                        "UPDATE users SET is_active = 1, updated_at = UTC_TIMESTAMP() WHERE id_user = ? AND is_active = 0")) {
+                    ps.setLong(1, userId);
+                    if (ps.executeUpdate() != 1) {
+                        throw new SQLException("Akun staf tidak berada dalam status menunggu.");
+                    }
+                }
+            } else if ("dokter".equals(role)) {
+                try (PreparedStatement ps = db.prepareStatement(
+                        "DELETE FROM dokter WHERE id_user = ? AND is_active = 0")) {
+                    ps.setLong(1, userId);
+                    ps.executeUpdate();
+                }
+            }
+            try (PreparedStatement ps = db.prepareStatement(
+                    "UPDATE log_aktivitas SET aktivitas = 'REGISTER_STAFF_CLOSED' WHERE id_log = ? AND aktivitas = 'REGISTER_STAFF'")) {
+                ps.setLong(1, requestId);
+                if (ps.executeUpdate() != 1) {
+                    throw new SQLException("Permohonan staf tidak dapat diperbarui.");
+                }
+            }
+            catat(db, adminId, setuju ? "APPROVE_STAFF_REGISTRATION" : "REJECT_STAFF_REGISTRATION", "users", userId,
+                    (setuju ? "Admin menyetujui " : "Admin menolak ") + role + " " + nama);
+            db.commit();
+            return baik(200, setuju ? "Pendaftaran staf disetujui." : "Pendaftaran staf ditolak.");
+        } catch (SQLException error) {
+            try {
+                db.rollback();
+            } catch (SQLException diabaikan) {
+                // Transaksi sudah batal.
+            }
+            System.err.println("[mediflow] Persetujuan staf gagal: " + ColumnValues.pesan(error));
+            return gagal(503, "Permohonan staf tidak dapat diproses.");
+        } finally {
+            try {
+                db.setAutoCommit(otomatis);
+            } catch (SQLException diabaikan) {
+                // Koneksi ditutup oleh pemanggil.
+            }
+        }
+    }
+
     private static void catat(Connection db, long accountId, String aktivitas, String tabel, long referensi, String keterangan)
             throws SQLException {
+        boolean warisan = SkemaFisik.warisan(db);
+        String kolom = warisan ? "id_user" : "account_id";
+        String acuan = warisan ? tabelWarisan(tabel) : tabel;
         try (PreparedStatement ps = db.prepareStatement(
-                "INSERT INTO log_aktivitas (account_id, aktivitas, tabel_referensi, id_referensi, keterangan) VALUES (?, ?, ?, ?, ?)")) {
+                "INSERT INTO log_aktivitas (" + kolom + ", aktivitas, tabel_referensi, id_referensi, keterangan) VALUES (?, ?, ?, ?, ?)")) {
             ps.setLong(1, accountId);
             ps.setString(2, aktivitas);
-            ps.setString(3, tabel);
+            ps.setString(3, acuan);
             ps.setLong(4, referensi);
             ps.setString(5, keterangan);
             ps.executeUpdate();
         }
     }
 
+    private static String tabelWarisan(String tabel) {
+        return switch (tabel) {
+            case "accounts" -> "users";
+            case "patients" -> "pasien";
+            case "farmasi_staff" -> "users";
+            default -> tabel;
+        };
+    }
+
     private static String[] bacaPending(Connection db, long accountId) throws SQLException {
+        String kolom = SkemaFisik.warisan(db) ? "id_user" : "account_id";
         try (PreparedStatement ps = db.prepareStatement(
-                "SELECT keterangan FROM log_aktivitas WHERE account_id = ? AND aktivitas = 'REGISTER_PENDING' "
+                "SELECT keterangan FROM log_aktivitas WHERE " + kolom + " = ? AND aktivitas = 'REGISTER_PENDING' "
                         + "ORDER BY id_log DESC LIMIT 1")) {
             ps.setLong(1, accountId);
             try (ResultSet rs = ps.executeQuery()) {

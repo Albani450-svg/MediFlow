@@ -37,7 +37,8 @@ public final class ApplicationServer {
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
         System.out.println("[mediflow] Aplikasi Java di http://127.0.0.1:" + port + "/");
-        System.out.println("[mediflow] API Java mediflow di http://127.0.0.1:" + port + "/api/database");
+        System.out.println("[mediflow] API Java di http://127.0.0.1:" + port + "/api/database");
+        System.out.println("[mediflow] Database " + Database.nama() + " di 127.0.0.1:3306");
         System.out.flush();
     }
 

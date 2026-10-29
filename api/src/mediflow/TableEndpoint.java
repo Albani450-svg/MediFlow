@@ -25,9 +25,14 @@ final class TableEndpoint {
     private TableEndpoint() {}
 
     static Jawaban daftar(Connection db, TableCatalog.Table tabel, Map<String, String> saringan) throws SQLException {
-        StringBuilder sql = new StringBuilder("SELECT * FROM ").append(DatabaseSnapshot.kutip(tabel.name()));
+        boolean warisan = SkemaFisik.warisan(db);
+        StringBuilder sql = new StringBuilder(SkemaFisik.pilih(warisan, tabel));
+        String peran = SkemaFisik.saringPeran(warisan, tabel.name());
         List<Object> nilai = new ArrayList<>();
-        boolean awal = true;
+        boolean awal = peran.isEmpty();
+        if (!peran.isEmpty()) {
+            sql.append(" WHERE ").append(peran);
+        }
         for (String kolom : tabel.filters()) {
             if (!saringan.containsKey(kolom)) {
                 continue;
@@ -38,14 +43,14 @@ final class TableEndpoint {
             }
             sql.append(awal ? " WHERE " : " AND ");
             awal = false;
-            sql.append(DatabaseSnapshot.kutip(kolom)).append(" = ?");
+            sql.append(SkemaFisik.ekspresi(warisan, tabel.name(), kolom)).append(" = ?");
             if (tabel.booleans().contains(kolom)) {
                 nilai.add(ColumnValues.nyala(isi) ? 1 : 0);
             } else {
                 nilai.add(isi);
             }
         }
-        sql.append(" ORDER BY ").append(DatabaseSnapshot.kutip(tabel.pk())).append(" ASC");
+        sql.append(" ORDER BY ").append(SkemaFisik.ekspresi(warisan, tabel.name(), tabel.pk())).append(" ASC");
         List<Map<String, Object>> baris = new ArrayList<>();
         try (PreparedStatement ps = db.prepareStatement(sql.toString())) {
             ikatDaftar(ps, nilai);
@@ -117,7 +122,13 @@ final class TableEndpoint {
         if (cari(db, tabel, id) == null) {
             return gagal("Data " + tabel.label() + " tidak ditemukan", 404, null);
         }
-        String sql = "DELETE FROM " + DatabaseSnapshot.kutip(tabel.name()) + " WHERE " + DatabaseSnapshot.kutip(tabel.pk()) + " = ?";
+        boolean warisan = SkemaFisik.warisan(db);
+        String sql = "DELETE FROM " + DatabaseSnapshot.kutip(SkemaFisik.tabelFisik(warisan, tabel.name()))
+                + " WHERE " + SkemaFisik.ekspresi(warisan, tabel.name(), tabel.pk()) + " = ?";
+        String peran = SkemaFisik.saringPeran(warisan, tabel.name());
+        if (!peran.isEmpty()) {
+            sql += " AND " + peran;
+        }
         try (PreparedStatement ps = db.prepareStatement(sql)) {
             ps.setLong(1, id);
             int jumlah = ps.executeUpdate();
@@ -286,18 +297,28 @@ final class TableEndpoint {
         } else if (nilaiAbaikan != null && nilaiAbaikan.matches("\\{\\w+}")) {
             abaikan = null;
         }
+        boolean warisan = SkemaFisik.warisan(db);
+        String tabelFisik = SkemaFisik.tabelFisik(warisan, letak[0]);
+        String kolomFisik = SkemaFisik.kolomFisik(warisan, letak[0], letak[1]);
+        if ("accounts".equals(letak[0]) && "email".equals(letak[1]) && warisan) {
+            kolomFisik = "username";
+        }
+        if (kolomFisik == null) {
+            return true;
+        }
+        String abaikanFisik = abaikan == null ? null : SkemaFisik.kolomFisik(warisan, letak[0], abaikan);
         StringBuilder sql = new StringBuilder("SELECT 1 FROM ")
-                .append(DatabaseSnapshot.kutip(letak[0]))
+                .append(DatabaseSnapshot.kutip(tabelFisik))
                 .append(" WHERE ")
-                .append(DatabaseSnapshot.kutip(letak[1]))
+                .append(DatabaseSnapshot.kutip(kolomFisik))
                 .append(" = ?");
-        if (abaikan != null && nilaiAbaikan != null && !nilaiAbaikan.isEmpty()) {
-            sql.append(" AND ").append(DatabaseSnapshot.kutip(abaikan)).append(" <> ?");
+        if (abaikanFisik != null && nilaiAbaikan != null && !nilaiAbaikan.isEmpty()) {
+            sql.append(" AND ").append(DatabaseSnapshot.kutip(abaikanFisik)).append(" <> ?");
         }
         sql.append(" LIMIT 1");
         try (PreparedStatement ps = db.prepareStatement(sql.toString())) {
             ps.setString(1, teks);
-            if (abaikan != null && nilaiAbaikan != null && !nilaiAbaikan.isEmpty()) {
+            if (abaikanFisik != null && nilaiAbaikan != null && !nilaiAbaikan.isEmpty()) {
                 ps.setString(2, nilaiAbaikan);
             }
             try (ResultSet rs = ps.executeQuery()) {
@@ -308,7 +329,13 @@ final class TableEndpoint {
 
     private static boolean sudahAda(Connection db, String param, String teks) throws SQLException {
         String[] letak = param.split(",", 3)[0].split("\\.", 2);
-        String sql = "SELECT 1 FROM " + DatabaseSnapshot.kutip(letak[0]) + " WHERE " + DatabaseSnapshot.kutip(letak[1]) + " = ? LIMIT 1";
+        boolean warisan = SkemaFisik.warisan(db);
+        String tabelFisik = SkemaFisik.tabelFisik(warisan, letak[0]);
+        String kolomFisik = SkemaFisik.kolomFisik(warisan, letak[0], letak[1]);
+        if (kolomFisik == null) {
+            return false;
+        }
+        String sql = "SELECT 1 FROM " + DatabaseSnapshot.kutip(tabelFisik) + " WHERE " + DatabaseSnapshot.kutip(kolomFisik) + " = ? LIMIT 1";
         try (PreparedStatement ps = db.prepareStatement(sql)) {
             ps.setString(1, teks);
             try (ResultSet rs = ps.executeQuery()) {
@@ -541,7 +568,13 @@ final class TableEndpoint {
     }
 
     private static Map<String, Object> cari(Connection db, TableCatalog.Table tabel, long id) throws SQLException {
-        String sql = "SELECT * FROM " + DatabaseSnapshot.kutip(tabel.name()) + " WHERE " + DatabaseSnapshot.kutip(tabel.pk()) + " = ?";
+        boolean warisan = SkemaFisik.warisan(db);
+        String sql = SkemaFisik.pilih(warisan, tabel) + " WHERE "
+                + SkemaFisik.ekspresi(warisan, tabel.name(), tabel.pk()) + " = ?";
+        String peran = SkemaFisik.saringPeran(warisan, tabel.name());
+        if (!peran.isEmpty()) {
+            sql += " AND " + peran;
+        }
         try (PreparedStatement ps = db.prepareStatement(sql)) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
@@ -562,13 +595,20 @@ final class TableEndpoint {
     }
 
     private static long sisip(Connection db, TableCatalog.Table tabel, Map<String, Object> data) throws SQLException {
-        List<String> kolom = new ArrayList<>(data.keySet());
-        StringBuilder sql = new StringBuilder("INSERT INTO ").append(DatabaseSnapshot.kutip(tabel.name())).append(" (");
+        boolean warisan = SkemaFisik.warisan(db);
+        List<String> kolom = new ArrayList<>();
+        for (String nama : data.keySet()) {
+            if (SkemaFisik.kolomFisik(warisan, tabel.name(), nama) != null) {
+                kolom.add(nama);
+            }
+        }
+        StringBuilder sql = new StringBuilder("INSERT INTO ")
+                .append(DatabaseSnapshot.kutip(SkemaFisik.tabelFisik(warisan, tabel.name()))).append(" (");
         for (int i = 0; i < kolom.size(); i++) {
             if (i > 0) {
                 sql.append(',');
             }
-            sql.append(DatabaseSnapshot.kutip(kolom.get(i)));
+            sql.append(DatabaseSnapshot.kutip(SkemaFisik.kolomFisik(warisan, tabel.name(), kolom.get(i))));
         }
         sql.append(") VALUES (");
         sql.append("?,".repeat(Math.max(kolom.size(), 1)));
@@ -590,15 +630,22 @@ final class TableEndpoint {
 
     private static void perbarui(Connection db, TableCatalog.Table tabel, long id, Map<String, Object> data)
             throws SQLException {
-        List<String> kolom = new ArrayList<>(data.keySet());
-        StringBuilder sql = new StringBuilder("UPDATE ").append(DatabaseSnapshot.kutip(tabel.name())).append(" SET ");
+        boolean warisan = SkemaFisik.warisan(db);
+        List<String> kolom = new ArrayList<>();
+        for (String nama : data.keySet()) {
+            if (SkemaFisik.kolomFisik(warisan, tabel.name(), nama) != null) {
+                kolom.add(nama);
+            }
+        }
+        StringBuilder sql = new StringBuilder("UPDATE ")
+                .append(DatabaseSnapshot.kutip(SkemaFisik.tabelFisik(warisan, tabel.name()))).append(" SET ");
         for (int i = 0; i < kolom.size(); i++) {
             if (i > 0) {
                 sql.append(',');
             }
-            sql.append(DatabaseSnapshot.kutip(kolom.get(i))).append(" = ?");
+            sql.append(DatabaseSnapshot.kutip(SkemaFisik.kolomFisik(warisan, tabel.name(), kolom.get(i)))).append(" = ?");
         }
-        sql.append(" WHERE ").append(DatabaseSnapshot.kutip(tabel.pk())).append(" = ?");
+        sql.append(" WHERE ").append(SkemaFisik.ekspresi(warisan, tabel.name(), tabel.pk())).append(" = ?");
         try (PreparedStatement ps = db.prepareStatement(sql.toString())) {
             for (int i = 0; i < kolom.size(); i++) {
                 ikatKolom(ps, i + 1, data.get(kolom.get(i)), tabel.kolom(kolom.get(i)));

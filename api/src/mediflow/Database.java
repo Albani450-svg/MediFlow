@@ -5,15 +5,19 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/** Koneksi mediflow. Variabel lingkungan: MEDIFLOW_DB_HOST, USER, PASSWORD, NAME, PORT. */
+/** Koneksi medicflow_db. Variabel lingkungan: MEDIFLOW_DB_HOST, USER, PASSWORD, NAME, PORT. */
 final class Database {
     private Database() {}
+
+    static String nama() {
+        return env("MEDIFLOW_DB_NAME", "medicflow_db");
+    }
 
     static Connection open() throws SQLException {
         String host = env("MEDIFLOW_DB_HOST", "127.0.0.1");
         String user = env("MEDIFLOW_DB_USER", "root");
         String password = env("MEDIFLOW_DB_PASSWORD", "");
-        String name = env("MEDIFLOW_DB_NAME", "mediflow");
+        String name = nama();
         String port = env("MEDIFLOW_DB_PORT", "3306");
         String url = "jdbc:mysql://" + host + ":" + port + "/" + name
                 + "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
@@ -24,6 +28,7 @@ final class Database {
             perintah.execute("SET time_zone = '+00:00'");
             perintah.execute("SET NAMES utf8mb4");
         }
+        SkemaFisik.siapkan(koneksi);
         return koneksi;
     }
 

@@ -4,7 +4,7 @@
 -- Aman dijalankan ulang pada MariaDB 10.4 (XAMPP proyek ini).
 -- Aplikasi Java belum membaca tabel ini, jadi penyimpanan layar tidak menghapus barisnya.
 --
--- Jangan dijalankan pada database mediflow yang sudah ada di DBeaver.
+-- Jangan dijalankan pada database medicflow_db yang sudah ada di DBeaver.
 -- mysql -u root mediflow < db/migrations/002-registrasi-staf.sql
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;

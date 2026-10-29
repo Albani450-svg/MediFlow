@@ -4,7 +4,7 @@
 -- Akun lama menerima account_status ACTIVE. Email kosong dijadikan NULL sebelum indeks unik dipasang.
 -- Aman dijalankan ulang pada MariaDB 10.4 (XAMPP proyek ini).
 --
--- Jangan dijalankan pada database mediflow yang sudah ada di DBeaver.
+-- Jangan dijalankan pada database medicflow_db yang sudah ada di DBeaver.
 -- mysql -u root mediflow < db/migrations/001-registrasi-pasien.sql
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;

@@ -102,7 +102,7 @@ final class VisitStore {
             bolehDorong = true;
         } catch (Exception error) {
             basis = DemoData.buat();
-            System.err.println("[mediflow] mediflow tidak terbaca: " + ColumnValues.pesan(error));
+            System.err.println("[mediflow] " + Database.nama() + " tidak terbaca: " + ColumnValues.pesan(error));
         }
     }
 
@@ -150,7 +150,7 @@ final class VisitStore {
             lengkapkanAkun(db);
             DatabaseSnapshot.simpan(db, basis.kePeta());
         } catch (Exception error) {
-            System.err.println("[mediflow] Perubahan belum tersimpan ke mediflow: " + ColumnValues.pesan(error));
+            System.err.println("[mediflow] Perubahan belum tersimpan ke " + Database.nama() + ": " + ColumnValues.pesan(error));
         }
     }
 
