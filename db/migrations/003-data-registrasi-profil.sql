@@ -6,6 +6,7 @@
 -- sampai katalog tabel memakainya.
 --
 -- Jangan dijalankan pada database medicflow_db yang sudah ada di DBeaver.
+-- Skrip ini menambah no_satusehat dan kolom privasi pada pasien. Diagram DBeaver tidak punya kolom itu.
 -- mysql -u root mediflow < db/migrations/003-data-registrasi-profil.sql
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;

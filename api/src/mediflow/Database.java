@@ -28,7 +28,6 @@ final class Database {
             perintah.execute("SET time_zone = '+00:00'");
             perintah.execute("SET NAMES utf8mb4");
         }
-        SkemaFisik.siapkan(koneksi);
         return koneksi;
     }
 

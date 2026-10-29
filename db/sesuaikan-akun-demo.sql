@@ -1,5 +1,7 @@
--- Kata sandi demo pada database medicflow_db (tabel users).
--- Dump menyimpan placeholder $2y$10$abcdefghijklmnopqrstuv, bukan hash yang bisa dipakai masuk.
+-- Jangan dijalankan pada medicflow_db. Berkas ini mengubah password_hash di DBeaver.
+-- Lima akun demo masih menyimpan placeholder $2y$10$abcdefghijklmnopqrstuv.
+-- Aplikasi menerima admin123, dokter123, apotek123, dan pasien123 untuk akun itu
+-- tanpa menulis ulang tabel users.
 -- Nilai di bawah adalah SHA-256. Akun lain, termasuk pasien yang mendaftar sendiri, tidak diubah.
 -- Hanya baris yang masih berisi placeholder yang diganti.
 -- Lembar login dummy menandai dummy_pasien01 dan dummy_pasien02 sebagai belum disetel.

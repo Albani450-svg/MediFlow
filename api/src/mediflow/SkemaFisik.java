@@ -13,18 +13,10 @@ import java.util.Map;
 
 /**
  * medicflow_db menyimpan akun di users dan pasien, dengan id_user.
- * Aplikasi tetap memakai nama accounts, patients, dan account_id.
+ * Aplikasi tetap memakai nama accounts, patients, dan account_id di memori.
+ * Koneksi tidak membuat tabel baru. auth_rate_limits tidak ada di DBeaver.
  */
 final class SkemaFisik {
-    private static final String TABEL_BATAS =
-            "CREATE TABLE IF NOT EXISTS auth_rate_limits ("
-                    + "scope_key char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,"
-                    + "window_started_at datetime NOT NULL,"
-                    + "attempt_count int(10) UNSIGNED NOT NULL DEFAULT 0,"
-                    + "PRIMARY KEY (scope_key),"
-                    + "KEY idx_auth_rate_window (window_started_at)"
-                    + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-
     private static final String[] HAPUS = {
             "detail_resep", "pengambilan_obat", "resep", "pemeriksaan", "pendaftaran_poli",
             "notifikasi", "otp_verifikasi", "jadwal_dokter", "dokter", "mutasi_stok",
@@ -49,15 +41,6 @@ final class SkemaFisik {
             cacheNilai = nilai;
         }
         return nilai;
-    }
-
-    static void siapkan(Connection db) throws SQLException {
-        if (!warisan(db) || adaTabel(db, "auth_rate_limits")) {
-            return;
-        }
-        try (Statement perintah = db.createStatement()) {
-            perintah.execute(TABEL_BATAS);
-        }
     }
 
     static String tabelFisik(boolean warisan, String tabel) {
@@ -131,6 +114,9 @@ final class SkemaFisik {
                 sql.append(" AS ").append(DatabaseSnapshot.kutip(nama));
             }
         }
+        if ("patients".equals(tabel.name())) {
+            sql.append(", `nomor_bpjs`");
+        }
         sql.append(" FROM ").append(DatabaseSnapshot.kutip(tabelFisik(true, tabel.name())));
         return sql.toString();
     }
@@ -150,6 +136,9 @@ final class SkemaFisik {
                     Map<String, Object> item = new LinkedHashMap<>();
                     for (TableCatalog.Col kolom : tabel.columns()) {
                         item.put(kolom.name(), ColumnValues.baca(rs.getString(kolom.name()), kolom));
+                    }
+                    if ("patients".equals(tabel.name())) {
+                        item.put("nomor_bpjs", rs.getString("nomor_bpjs"));
                     }
                     baris.add(item);
                 }
@@ -413,7 +402,7 @@ final class SkemaFisik {
         return hasil;
     }
 
-    private static boolean adaTabel(Connection db, String nama) throws SQLException {
+    static boolean adaTabel(Connection db, String nama) throws SQLException {
         try (PreparedStatement ps = db.prepareStatement(
                 "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?")) {
             ps.setString(1, nama);

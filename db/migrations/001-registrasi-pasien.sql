@@ -5,6 +5,8 @@
 -- Aman dijalankan ulang pada MariaDB 10.4 (XAMPP proyek ini).
 --
 -- Jangan dijalankan pada database medicflow_db yang sudah ada di DBeaver.
+-- Skrip ini menambah email, account_status, melebarkan kode_otp, dan membuat auth_rate_limits.
+-- Diagram DBeaver tidak punya kolom atau tabel itu.
 -- mysql -u root mediflow < db/migrations/001-registrasi-pasien.sql
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;

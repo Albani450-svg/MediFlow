@@ -18,6 +18,11 @@ public final class VisitFlowCheck {
         String hashDemo = PasswordHash.hashPassword("pasien123");
         benar(PasswordHash.verifikasiPassword("pasien123", hashDemo));
         benar(!PasswordHash.verifikasiPassword("salah", hashDemo));
+        String placeholder = "$2y$10$abcdefghijklmnopqrstuv";
+        benar(PasswordHash.verifikasiAkun("admin", "admin123", placeholder));
+        benar(PasswordHash.verifikasiAkun("dummy_pasien01", "pasien123", placeholder));
+        benar(!PasswordHash.verifikasiAkun("admin", "pasien123", placeholder));
+        benar(!PasswordHash.verifikasiAkun("tamu", "admin123", placeholder));
         String hashKuat = PasswordHash.hashPasswordLambat("kata-sandi-registrasi");
         benar(PasswordHash.verifikasiPassword("kata-sandi-registrasi", hashKuat));
         benar(!PasswordHash.verifikasiPassword("kata-sandi-salah", hashKuat));

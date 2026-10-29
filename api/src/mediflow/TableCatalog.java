@@ -317,7 +317,7 @@ final class TableCatalog {
                 List.of("account_id"),
                 List.of(
                         field("account_id", "required|is_natural_no_zero|is_not_unique[accounts.account_id]", "is_not_unique", "Akun tidak ditemukan."),
-                        field("kode_otp", "required|max_length[64]"),
+                        field("kode_otp", "required|max_length[10]"),
                         field("tujuan", "required|max_length[20]"),
                         field("expired_at", "required|valid_date[Y-m-d H:i:s]"),
                         field("verified_at", "permit_empty|valid_date[Y-m-d H:i:s]"),

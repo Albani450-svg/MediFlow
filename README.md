@@ -62,19 +62,19 @@ Koneksi MySQL ada di `api/src/mediflow/Database.java`. Bawaan: host `127.0.0.1`,
 
 ## Registrasi akun
 
-Layar masuk berisi username atau email, kata sandi, dan tombol **Belum punya akun? Daftar**. Tidak ada pemilih peran di form masuk. Pendaftaran dimulai dengan pilihan Pasien, Dokter, atau Apoteker (disimpan sebagai role `farmasi`). Pendaftar mengisi nama, email (paling panjang 50 karakter, sekaligus menjadi username), nomor telepon yang diawali `08`, dan kata sandi minimal 10 karakter, lalu menekan Lanjut dan melengkapi profil. Kode WhatsApp tidak diminta karena pengiriman pesan belum terhubung. Nomor telepon disimpan sebagai kontak. Kata sandi baru disimpan dengan PBKDF2-HMAC-SHA256; akun demo lama tetap memakai SHA-256.
+Layar masuk berisi username atau email, kata sandi, dan tombol **Belum punya akun? Daftar**. Tidak ada pemilih peran di form masuk. Pendaftaran dimulai dengan pilihan Pasien, Dokter, atau Apoteker (disimpan sebagai role `farmasi`). Pendaftar mengisi nama, email (paling panjang 50 karakter, sekaligus menjadi username), nomor telepon yang diawali `08`, dan kata sandi minimal 10 karakter, lalu menekan Lanjut dan melengkapi profil. Kode WhatsApp tidak diminta karena pengiriman pesan belum terhubung. Nomor telepon disimpan sebagai kontak. Kata sandi baru disimpan dengan PBKDF2-HMAC-SHA256. Lima akun demo di `users` masih memakai placeholder dump; aplikasi mencocokkannya dengan kata sandi demo tanpa mengubah baris itu. Hash SHA-256 tetap diterima bila suatu saat tersimpan.
 
 Pasien melengkapi NIK, tanggal lahir, jenis kelamin, dan alamat, lalu menyetujui kebijakan privasi. Nomor BPJS disimpan di `pasien.nomor_bpjs`. Nomor SATUSEHAT ditanyakan, tetapi tidak ada kolom untuk menyimpannya. Nomor rekam medis dikembalikan ke layar; tabel `pasien` tidak punya kolom itu. Dokter menambah SIP, spesialisasi, dan poli; apoteker menambah SIPA. Akun staf tetap nonaktif sampai admin menyetujuinya. Nomor izin disimpan di log aktivitas karena tidak ada tabel permohonan. Permohonan yang ditolak tidak bisa dipakai untuk masuk.
 
-Di `medicflow_db`, peran ada di kolom `users.role`. Profil pasien ada di tabel `pasien` (`id_user`), dokter di `dokter.id_user`, dan nomor BPJS di `pasien.nomor_bpjs`. Tidak ada tabel `accounts`, `patients`, `admins`, atau `farmasi_staff`. Aplikasi memetakan nama itu di memori. Jumlah pendaftaran tetap dibatasi per alamat IP dan nomor telepon di `auth_rate_limits`. `POST /api/auth/register/verify-otp` menjawab HTTP 410: verifikasi kode WhatsApp belum tersedia.
+Di `medicflow_db`, peran ada di kolom `users.role`. Profil pasien ada di tabel `pasien` (`id_user`), dokter di `dokter.id_user`, dan nomor BPJS di `pasien.nomor_bpjs`. Tidak ada tabel `accounts`, `patients`, `admins`, `farmasi_staff`, atau `auth_rate_limits`. Aplikasi memetakan nama akun di memori. Batas pendaftaran per alamat IP dan nomor telepon disimpan di memori proses, bukan di tabel baru. `otp_verifikasi.kode_otp` tetap `varchar(10)`. `POST /api/auth/register/verify-otp` menjawab HTTP 410: verifikasi kode WhatsApp belum tersedia.
 
-Data yang dipakai aplikasi sudah ada di database `medicflow_db` (koneksi DBeaver MediFlow). `db/schema.sql` hanya menyimpan salinan yang sudah dipetakan ke skema `accounts` / `patients`. Jangan mengimpor berkas itu. `db/sesuaikan-akun-demo.sql` mengganti hash placeholder `$2y$10$abcdefghijklmnopqrstuv` pada `admin`, `dokter01`, `farmasi01`, `dummy_pasien01`, dan `dummy_pasien02` menjadi SHA-256. Lembar Excel menandai kata sandi dua pasien dummy sebagai belum disetel; keduanya memakai `pasien123`. Akun yang mendaftar sendiri tidak diubah.
+Data yang dipakai aplikasi sudah ada di database `medicflow_db` (koneksi DBeaver MediFlow). `db/schema.sql` menyalin struktur 15 tabel itu, tanpa data. Jangan mengimpor berkas itu. `db/sesuaikan-akun-demo.sql` juga jangan dijalankan: lima akun demo masih memakai placeholder `$2y$10$abcdefghijklmnopqrstuv`, dan aplikasi menerima `admin`/`admin123`, `dokter01`/`dokter123`, `farmasi01`/`apotek123`, serta `dummy_pasien01` dan `dummy_pasien02`/`pasien123` tanpa mengubah `password_hash`. Akun yang mendaftar sendiri memakai PBKDF2.
 
-Dua baris pasien lama tetap menempel pada akun staf: Budi Santoso Edit pada akun `admin`, dan Pasien Uji MedicFlow pada akun `dokter01`. Keduanya tidak punya username pasien sendiri. `scripts\run-application.ps1 dummy` mengisi data uji lain dari `api/src/mediflow/DemoData.java` (akun `budi` dan antrean panjang) dan mengganti tabel kunjungan. `auth_rate_limits` tidak ikut.
+Dua baris pasien lama tetap menempel pada akun staf: Budi Santoso Edit pada akun `admin`, dan Pasien Uji MedicFlow pada akun `dokter01`. Keduanya tidak punya username pasien sendiri. Nomor BPJS mereka dibaca dari `pasien.nomor_bpjs`. `scripts\run-application.ps1 dummy` mengisi data uji lain dari `api/src/mediflow/DemoData.java` (akun `budi` dan antrean panjang) dan mengganti tabel kunjungan. Jangan menjalankannya bila isi DBeaver harus tetap.
 
 Jika MySQL tidak terjangkau, proses Java memakai data uji di memori dan tidak menuliskannya kembali. Jika proses Java berhenti, aplikasi tidak bisa dibuka: layar tidak lagi disimpan di peramban.
 
-Perintah `dummy` mengganti 17 tabel katalog dengan data uji. Akun layar masuk pada data uji itu adalah `budi`, `dokter01`, `admin`, dan `farmasi01`. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di data uji supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
+Perintah `dummy` mengganti tabel katalog dengan data uji. Akun layar masuk pada data uji itu adalah `budi`, `dokter01`, `admin`, dan `farmasi01`. Pasien lain (Siti, Andi, Rina, Joko, Maya, Dewi, Agus, Hendra) dan dokter Poli Gigi, Anak, serta Mata ada di data uji supaya antrean dan jadwal terlihat. Antrean hari ini di Poli Umum Dr. Ahmad:
 
 | Antrean | Pasien | Posisi | Yang bisa dicoba |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Tombol Kembalikan data demo di panel admin memuat ulang data uji untuk hari ini.
 | --- | --- |
 | `scripts\run-application.ps1` | Menyusun sumber Java, lalu menjalankan aplikasi di port 8088 |
 | `scripts\run-application.ps1 periksa` | Pemeriksaan alur di memori: jadwal ganda, stok habis, kode yang dipakai ulang, gambar QR, dan catatan stok |
-| `scripts\run-application.ps1 dummy` | Mengganti tabel kunjungan di `medicflow_db` dengan data uji hari ini. `auth_rate_limits` tidak ikut |
+| `scripts\run-application.ps1 dummy` | Mengganti tabel kunjungan di `medicflow_db` dengan data uji hari ini. Jangan dipakai bila isi DBeaver harus tetap |
 | `scripts\run-application.ps1 henti` | Menghentikan proses Java aplikasi di port 8088 |
 
 Di Visual Studio Code, **Run application** membuka Edge ke http://127.0.0.1:8088 dan menyalakan server yang sama.
@@ -116,9 +116,9 @@ MediFlow/
   scripts/
     run-application.ps1    menyusun dan menjalankan aplikasi Java
   db/
-    schema.sql             salinan skema accounts (dokumentasi; jangan impor)
+    schema.sql             struktur 15 tabel DBeaver, tanpa data; jangan impor
     migrations/            jangan dijalankan pada medicflow_db
-    sesuaikan-akun-demo.sql  sudah dipasang; jangan dijalankan ulang pada database yang hidup
+    sesuaikan-akun-demo.sql  jangan dijalankan; placeholder demo diterima aplikasi
   api/
     lib/                   jar Jackson dan MySQL, tanpa Maven
     src/mediflow/          domain, API, dan layar HTML
@@ -143,7 +143,7 @@ Kode Java ada di `api/src/mediflow/`:
 | `VisitFlowCheck.java` | Pemeriksaan alur |
 | `LoadDemoData.java` | Menulis data uji ke MySQL |
 | `Database.java` | Koneksi MySQL |
-| `DatabaseSnapshot.java` | Baca dan tulis 17 tabel katalog. `auth_rate_limits` tidak ikut |
+| `DatabaseSnapshot.java` | Baca dan tulis tabel katalog. Kolom fisik mengikuti `users` dan `pasien` |
 | `TableCatalog.java` | Bentuk tabel dan validasi |
 | `TableEndpoint.java` | Buat, baca, ubah, dan hapus satu tabel |
 | `ColumnValues.java` | Konversi nilai kolom |
@@ -166,6 +166,6 @@ API tetap tersedia di proses yang sama:
 
 Balasan CRUD berbentuk `{ "status", "message", "data" }`. Daftar bisa disaring lewat query, misalnya `GET /api/pendaftaran_poli?id_pasien=2&tanggal_kunjungan=2026-10-08`. Semua jalur hanya menjawab dari komputer ini. Jadwal yang bertumpuk, kuota di bawah antrean hari ini, atau jadwal yang disembunyikan padahal masih ada antrean hari ini ditolak. Pasien tidak bisa mendaftar dua kali pada jadwal dan tanggal yang sama. Pesan notifikasi tidak boleh memuat kata WhatsApp, nama obat, atau diagnosis.
 
-Perubahan dari layar menulis 17 tabel katalog lewat snapshot. `auth_rate_limits` tidak ikut, jadi batas pendaftaran tetap ada setelah layar disimpan. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
+Perubahan dari layar menulis tabel katalog lewat snapshot, ke nama fisik di DBeaver (`users`, `pasien`, `id_user`, `nomor_bpjs`, dan seterusnya). Batas pendaftaran ada di memori proses, jadi tidak menambah tabel. Dua jendela yang menyimpan bersamaan saling menimpa: simpanan terakhir mengganti perubahan yang lain.
 
-Tabel: `accounts`, `admins`, `farmasi_staff`, `patients`, `poliklinik`, `dokter`, `jadwal_dokter`, `obat`, `pendaftaran_poli`, `pemeriksaan`, `resep`, `detail_resep`, `notifikasi`, `otp_verifikasi`, `auth_rate_limits`, `pengambilan_obat`, `mutasi_stok`, `log_aktivitas`.
+Tabel fisik: `users`, `pasien`, `dokter`, `poliklinik`, `jadwal_dokter`, `obat`, `pendaftaran_poli`, `pemeriksaan`, `resep`, `detail_resep`, `notifikasi`, `otp_verifikasi`, `pengambilan_obat`, `mutasi_stok`, `log_aktivitas`. Nama `accounts`, `admins`, `farmasi_staff`, dan `patients` hanya dipakai di memori dan di jalur API.

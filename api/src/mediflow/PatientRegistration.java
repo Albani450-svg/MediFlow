@@ -14,10 +14,13 @@ import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Registrasi akun. Kode WhatsApp tidak dipakai karena pengiriman belum terhubung. */
 final class PatientRegistration {
     record Result(int status, Map<String, Object> body) {}
+
+    private static final ConcurrentHashMap<String, long[]> BATAS_MEMORI = new ConcurrentHashMap<>();
 
     private PatientRegistration() {}
 
@@ -770,6 +773,9 @@ final class PatientRegistration {
 
     private static boolean dibatasi(Connection db, String aksi, String subjek, int batas, int detik)
             throws SQLException {
+        if (!SkemaFisik.adaTabel(db, "auth_rate_limits")) {
+            return dibatasiMemori(aksi, subjek, batas, detik);
+        }
         try (PreparedStatement ps = db.prepareStatement(
                 "DELETE FROM auth_rate_limits WHERE window_started_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)")) {
             ps.executeUpdate();
@@ -793,6 +799,21 @@ final class PatientRegistration {
                 return rs.next() && rs.getInt(1) > batas;
             }
         }
+    }
+
+    private static boolean dibatasiMemori(String aksi, String subjek, int batas, int detik) {
+        String kunci = aksi + ":" + subjek.toLowerCase(java.util.Locale.ROOT);
+        long sekarang = System.currentTimeMillis() / 1000L;
+        long[] hasil = BATAS_MEMORI.compute(kunci, (nama, lama) -> {
+            if (lama == null || sekarang - lama[0] >= detik) {
+                return new long[] {sekarang, 1L};
+            }
+            return new long[] {lama[0], lama[1] + 1L};
+        });
+        if (BATAS_MEMORI.size() > 1000) {
+            BATAS_MEMORI.entrySet().removeIf(entri -> sekarang - entri.getValue()[0] > 86_400L);
+        }
+        return hasil[1] > batas;
     }
 
     private static boolean ada(Connection db, String sql, String... values) throws SQLException {

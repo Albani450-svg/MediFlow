@@ -295,7 +295,7 @@ final class VisitStore {
         if (user == null) {
             return gagal("Akun tidak ditemukan atau nonaktif.");
         }
-        if (!PasswordHash.verifikasiPassword(password, user.password_hash)) {
+        if (!PasswordHash.verifikasiAkun(user.username, password, user.password_hash)) {
             return gagal("Kata sandi tidak sesuai.");
         }
         if (!peranAkun(user.role)) {

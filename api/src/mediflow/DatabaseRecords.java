@@ -158,7 +158,6 @@ final class DatabaseRecords {
             Map<String, Object> baris = item.peta();
             baris.put("account_id", item.id_user);
             baris.remove("id_user");
-            baris.remove("nomor_bpjs");
             baris.remove("no_satusehat");
             baris.remove("privacy_consent_at");
             baris.remove("privacy_policy_version");

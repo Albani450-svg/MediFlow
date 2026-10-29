@@ -5,6 +5,7 @@
 -- Aplikasi Java belum membaca tabel ini, jadi penyimpanan layar tidak menghapus barisnya.
 --
 -- Jangan dijalankan pada database medicflow_db yang sudah ada di DBeaver.
+-- Skrip ini membuat staff_registration_requests. Diagram DBeaver tidak punya tabel itu.
 -- mysql -u root mediflow < db/migrations/002-registrasi-staf.sql
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;

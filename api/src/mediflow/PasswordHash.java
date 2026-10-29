@@ -1,10 +1,13 @@
 package mediflow;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
+import java.util.Locale;
+import java.util.Map;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
@@ -12,6 +15,15 @@ import javax.crypto.spec.PBEKeySpec;
 final class PasswordHash {
     private static final SecureRandom ACAK = new SecureRandom();
     private static final int ITERASI = 210_000;
+    /** Hash placeholder pada lima akun demo di users. Bukan hash bcrypt yang valid. */
+    private static final String PLACEHOLDER_DEMO = "$2y$10$abcdefghijklmnopqrstuv";
+    private static final Map<String, String> SANDI_DEMO = Map.of(
+            "admin", "admin123",
+            "dokter01", "dokter123",
+            "farmasi01", "apotek123",
+            "dummy_pasien01", "pasien123",
+            "dummy_pasien02", "pasien123"
+    );
 
     private PasswordHash() {}
 
@@ -35,6 +47,20 @@ final class PasswordHash {
         return "pbkdf2-sha256$" + ITERASI + "$"
                 + Base64.getUrlEncoder().withoutPadding().encodeToString(salt) + "$"
                 + Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+    }
+
+    static boolean verifikasiAkun(String username, String plain, String tersimpan) {
+        if (verifikasiPassword(plain, tersimpan)) {
+            return true;
+        }
+        if (username == null || plain == null || !PLACEHOLDER_DEMO.equals(tersimpan)) {
+            return false;
+        }
+        String contoh = SANDI_DEMO.get(username.toLowerCase(Locale.ROOT));
+        if (contoh == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(contoh.getBytes(StandardCharsets.UTF_8), plain.getBytes(StandardCharsets.UTF_8));
     }
 
     static boolean verifikasiPassword(String plain, String tersimpan) {
